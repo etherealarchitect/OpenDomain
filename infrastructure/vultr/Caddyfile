@@ -4,7 +4,7 @@
 	email {env.CADDY_EMAIL}
 }
 
-opendomain.scottkbrown.com {
+opendomain.etherealcode.org {
 	encode zstd gzip
 
 	log {
