@@ -158,17 +158,71 @@ class DomainService:
         return domain.epp_auth_code or ""
 
     async def initiate_transfer_in(self, data: DomainTransferIn, user: User) -> DomainTransfer:
+        name_parts = data.domain.lower().rsplit(".", 1)
+        if len(name_parts) != 2:
+            raise ValueError("Invalid domain name")
+        tld = name_parts[1]
+        now = datetime.now(UTC)
+
+        domain = Domain(
+            name=data.domain.lower(),
+            tld=tld,
+            status=DomainStatus.PENDING_TRANSFER,
+            owner_id=user.id,
+            registrant_contact_id=data.registrant_contact_id,
+            nameservers="ns1.opendomain.local,ns2.opendomain.local",
+            epp_auth_code=data.auth_code,
+            auto_renew=True,
+            privacy_enabled=True,
+            registration_date=now,
+            expiry_date=now + timedelta(days=365),
+            registration_period_years=1,
+            price_cents=TLD_PRICES_CENTS.get(tld, 1499),
+            renewal_price_cents=TLD_PRICES_CENTS.get(tld, 1499),
+        )
+        self.db.add(domain)
+        await self.db.flush()
+
         transfer = DomainTransfer(
-            domain_id=uuid.uuid4(),
+            domain_id=domain.id,
             auth_code=data.auth_code,
             from_registrar="external",
             to_registrar="OpenDomain",
             initiated_by=user.id,
         )
         self.db.add(transfer)
+
+        event = DomainEvent(
+            domain_id=domain.id,
+            event_type=DomainEventType.TRANSFERRED_IN,
+            details=f"Transfer initiated from external registrar",
+            actor_id=user.id,
+        )
+        self.db.add(event)
         await self.db.flush()
         await self.db.refresh(transfer)
         return transfer
+
+    async def initiate_transfer_out(self, domain_id: uuid.UUID, user_id: uuid.UUID) -> dict:
+        domain = await self.get(domain_id, user_id)
+        if not domain:
+            raise ValueError("Domain not found")
+        if domain.status != DomainStatus.ACTIVE:
+            raise ValueError("Only active domains can be transferred out")
+
+        domain.locked = False
+        domain.epp_auth_code = secrets.token_urlsafe(16)
+
+        event = DomainEvent(
+            domain_id=domain.id,
+            event_type=DomainEventType.TRANSFERRED_OUT,
+            details="Transfer out initiated, domain unlocked and auth code regenerated",
+            actor_id=user_id,
+        )
+        self.db.add(event)
+        await self.db.flush()
+        await self.db.refresh(domain)
+        return {"auth_code": domain.epp_auth_code, "domain": domain}
 
     async def delete(self, domain_id: uuid.UUID, user_id: uuid.UUID) -> None:
         domain = await self.get(domain_id, user_id)

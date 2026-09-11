@@ -175,7 +175,52 @@ class DnsService:
         self, domain_id: uuid.UUID, zone_file: str, user_id: uuid.UUID
     ) -> DnsZone:
         zone = await self.get_or_create_zone(domain_id, user_id)
-        # TODO: Parse BIND zone file format and create records
+        valid_types = {t.value for t in RecordType} - {"SOA", "DNSKEY"}
+        imported = 0
+
+        for line in zone_file.splitlines():
+            line = line.strip()
+            if not line or line.startswith(";") or line.startswith("$"):
+                continue
+            if "SOA" in line:
+                continue
+
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+
+            name = parts[0]
+            idx = 1
+            ttl = zone.default_ttl
+            if parts[idx].isdigit():
+                ttl = int(parts[idx])
+                idx += 1
+            if idx < len(parts) and parts[idx].upper() == "IN":
+                idx += 1
+            if idx >= len(parts):
+                continue
+            rtype = parts[idx].upper()
+            idx += 1
+            if rtype not in valid_types or idx >= len(parts):
+                continue
+
+            priority = None
+            content = " ".join(parts[idx:])
+            if rtype in ("MX", "SRV") and parts[idx].isdigit():
+                priority = int(parts[idx])
+                content = " ".join(parts[idx + 1:])
+
+            record = DnsRecord(
+                zone_id=zone.id,
+                record_type=RecordType(rtype),
+                name=name,
+                content=content,
+                ttl=ttl,
+                priority=priority,
+            )
+            self.db.add(record)
+            imported += 1
+
         zone.serial += 1
         await self.db.flush()
         await self.db.refresh(zone)

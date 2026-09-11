@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 40" fill="none">
+  <!-- The mark: an angle bracket framing a dot — terminal prompt meets domain separator -->
+  <path d="M4 20L16 10V14.5L8.5 20L16 25.5V30L4 20Z" fill="currentColor" opacity="0.5"/>
+  <circle cx="24" cy="20" r="4.5" fill="#6d8aff"/>
+
+  <!-- "open" in medium weight -->
+  <text x="40" y="28" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="500" fill="currentColor" letter-spacing="-0.02em">open</text>
+
+  <!-- "domain" in semibold -->
+  <text x="108" y="28" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="600" fill="currentColor" letter-spacing="-0.02em">domain</text>
+</svg>

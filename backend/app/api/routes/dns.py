@@ -74,6 +74,32 @@ async def import_zone(domain_id: uuid.UUID, zone_file: str, db: DbSession, curre
     return await service.import_zone_file(domain_id, zone_file, current_user.id)
 
 
+@router.get("/templates")
+async def list_templates():
+    from backend.app.services.dns_service import DNS_TEMPLATES
+    descriptions = {
+        "github-pages": "A records and www CNAME for GitHub Pages hosting",
+        "google-workspace": "MX records and SPF for Google Workspace email",
+        "microsoft-365": "MX, SPF, and autodiscover for Microsoft 365 email",
+        "vercel": "A record and www CNAME for Vercel deployments",
+        "netlify": "A record and www CNAME for Netlify deployments",
+    }
+    return [
+        {
+            "name": name,
+            "description": descriptions.get(name, ""),
+            "record_count": len(records),
+            "params": [
+                p.strip("{}")
+                for r in records
+                for p in r.content.split()
+                if p.startswith("{") and p.endswith("}")
+            ],
+        }
+        for name, records in DNS_TEMPLATES.items()
+    ]
+
+
 @router.post("/templates", response_model=DnsZoneResponse)
 async def apply_template(
     domain_id: uuid.UUID, data: DnsTemplateApply, db: DbSession, current_user: CurrentUser

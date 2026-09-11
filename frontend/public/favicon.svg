@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Bracket + dot mark, works at 16x16 -->
+  <path d="M6 16L14 8V12L10 16L14 20V24L6 16Z" fill="#e4e4e7" opacity="0.5"/>
+  <circle cx="21" cy="16" r="5" fill="#6d8aff"/>
+</svg>

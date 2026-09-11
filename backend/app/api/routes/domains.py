@@ -96,6 +96,16 @@ async def transfer_domain_in(data: DomainTransferIn, db: DbSession, current_user
     return await service.initiate_transfer_in(data, current_user)
 
 
+@router.post("/{domain_id}/transfer-out")
+async def transfer_domain_out(domain_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
+    service = DomainService(db)
+    try:
+        result = await service.initiate_transfer_out(domain_id, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return {"auth_code": result["auth_code"]}
+
+
 @router.delete("/{domain_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_domain(domain_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
     service = DomainService(db)
