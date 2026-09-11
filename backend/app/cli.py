@@ -18,36 +18,133 @@ Usage:
     opendomain contacts list
     opendomain contacts create
     opendomain whois <domain>
-    opendomain transfer <domain> --auth-code <code>
+    opendomain transfer <domain>
     opendomain agent <message>
 """
 
 import argparse
+import hashlib
+import os
+import stat
 import sys
+import tempfile
+from contextlib import suppress
 from getpass import getpass
+from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 
 DEFAULT_API = "http://localhost:8000/api/v1"
+STATE_DIR_ENV = "OPENDOMAIN_STATE_DIR"
+LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
+def default_state_dir() -> Path:
+    """Return a private, user-scoped state directory for CLI session data."""
+    configured = os.environ.get(STATE_DIR_ENV)
+    if configured:
+        return Path(configured).expanduser()
+    xdg_state_home = os.environ.get("XDG_STATE_HOME")
+    if xdg_state_home:
+        return Path(xdg_state_home).expanduser() / "opendomain"
+    return Path.home() / ".local" / "state" / "opendomain"
+
+
+def _validate_api_url(api_url: str) -> str:
+    """Require HTTPS, except for explicitly local development endpoints."""
+    if not api_url or any(char.isspace() or ord(char) < 0x20 for char in api_url):
+        raise ValueError("API URL must be an absolute HTTPS URL")
+    normalized = api_url.rstrip("/")
+    parsed = urlsplit(normalized)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("API URL must be an absolute HTTPS URL")
+    if parsed.scheme == "http" and parsed.hostname.lower().rstrip(".") not in LOOPBACK_HOSTS:
+        raise ValueError("API URL must use HTTPS (HTTP is only allowed for loopback development)")
+    return normalized
+
+
+def _reject_symlink_components(path: Path) -> None:
+    """Reject symlinked components that could redirect credential storage."""
+    absolute = path.absolute()
+    current = Path(absolute.anchor)
+    for component in absolute.parts[1:]:
+        current /= component
+        try:
+            info = current.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+            raise OSError(f"Unsafe state directory: {current}")
+
+
+def _ensure_private_directory(path: Path) -> None:
+    """Create a private state directory and reject symlinked path components."""
+    _reject_symlink_components(path)
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    _reject_symlink_components(path)
+    info = path.lstat()
+    if info.st_mode & 0o077:
+        raise OSError(f"State directory is too permissive: {path}")
 
 
 class OpenDomainCLI:
-    def __init__(self, api_url: str = DEFAULT_API):
-        self.api_url = api_url
+    def __init__(self, api_url: str = DEFAULT_API, state_dir: Path | None = None):
+        self.api_url = _validate_api_url(api_url)
         self.token: str | None = None
+        root = state_dir or default_state_dir()
+        origin = urlsplit(self.api_url)
+        origin_key = f"{origin.scheme}://{origin.netloc}".encode()
+        origin_digest = hashlib.sha256(origin_key).hexdigest()[:32]
+        self.token_path = root / origin_digest / "session"
         self._load_token()
 
-    def _load_token(self):
+    def _load_token(self) -> None:
+        _reject_symlink_components(self.token_path.parent)
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
         try:
-            with open(".opendomain-token") as f:
-                self.token = f.read().strip()
-        except FileNotFoundError:
-            pass
+            fd = os.open(self.token_path, flags)
+        except (FileNotFoundError, OSError):
+            return
+        try:
+            info = os.fstat(fd)
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.getuid()
+                or info.st_mode & 0o077
+            ):
+                return
+            self.token = os.read(fd, 1024 * 1024).decode("utf-8").strip() or None
+        except (OSError, UnicodeDecodeError):
+            self.token = None
+        finally:
+            os.close(fd)
 
-    def _save_token(self, token: str):
-        self.token = token
-        with open(".opendomain-token", "w") as f:
-            f.write(token)
+    def _save_token(self, token: str) -> None:
+        parent = self.token_path.parent
+        _ensure_private_directory(parent)
+        fd, temporary = tempfile.mkstemp(prefix=".session.", dir=parent)
+        try:
+            os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as file:
+                fd = -1
+                file.write(token)
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temporary, self.token_path)
+            self.token = token
+        finally:
+            if fd != -1:
+                os.close(fd)
+            with suppress(FileNotFoundError):
+                os.unlink(temporary)
 
     def _headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}
@@ -306,9 +403,10 @@ class OpenDomainCLI:
         for i, c in enumerate(contacts):
             print(f"  [{i + 1}] {c['label']} ({c['first_name']} {c['last_name']})")
         choice = int(input("Contact number: ")) - 1
+        auth_code = getpass("Transfer authorization code: ")
         result = self._request("POST", "/domains/transfer", {
             "domain": args.domain,
-            "auth_code": args.auth_code,
+            "auth_code": auth_code,
             "registrant_contact_id": contacts[choice]["id"],
         })
         print(f"Transfer initiated: {result['status']}")
@@ -388,9 +486,12 @@ class OpenDomainCLI:
         if not result:
             print("No listings.")
             return
-        for l in result:
-            name = l.get("domain_name", l["domain_id"][:8])
-            print(f"  {name:<30} ${l['asking_price_cents'] / 100:.2f}  [{l['status']}]")
+        for listing in result:
+            name = listing.get("domain_name", listing["domain_id"][:8])
+            print(
+                f"  {name:<30} ${listing['asking_price_cents'] / 100:.2f}  "
+                f"[{listing['status']}]"
+            )
 
     def marketplace_create(self, args):
         domains = self._request("GET", "/domains/")
@@ -398,7 +499,7 @@ class OpenDomainCLI:
         if not domain:
             print(f"Domain '{args.domain}' not found.")
             sys.exit(1)
-        result = self._request("POST", "/marketplace/listings", {
+        self._request("POST", "/marketplace/listings", {
             "domain_id": domain["id"], "asking_price_cents": args.price,
         })
         print(f"Listed {args.domain} for ${args.price / 100:.2f}")
@@ -468,6 +569,12 @@ class OpenDomainCLI:
 def main():
     parser = argparse.ArgumentParser(prog="opendomain", description="OpenDomain CLI")
     parser.add_argument("--api", default=DEFAULT_API, help="API base URL")
+    parser.add_argument(
+        "--state-dir",
+        type=Path,
+        help=f"Private CLI state directory (defaults to ${STATE_DIR_ENV} or XDG state)",
+    )
+    parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("login", help="Login to OpenDomain")
@@ -538,7 +645,6 @@ def main():
 
     transfer_p = sub.add_parser("transfer", help="Transfer domain in")
     transfer_p.add_argument("domain")
-    transfer_p.add_argument("--auth-code", required=True)
 
     agent_p = sub.add_parser("agent", help="Chat with AI agent")
     agent_p.add_argument("message", nargs="+")
@@ -605,7 +711,7 @@ def main():
     bulk_renew_p.add_argument("--years", type=int, default=1)
 
     args = parser.parse_args()
-    cli = OpenDomainCLI(api_url=args.api)
+    cli = OpenDomainCLI(api_url=args.api, state_dir=args.state_dir)
 
     match args.command:
         case "login": cli.login(args)

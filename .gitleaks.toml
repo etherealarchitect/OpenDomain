@@ -1,0 +1,12 @@
+title = "OpenDomain secret scanning rules"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Exact placeholders used by example configuration only"
+regexTarget = "match"
+regexes = [
+  '''(?i)^change-me-to-a-random-secret-key$''',
+  '''(?i)^your_new_rotated_key_here$''',
+]

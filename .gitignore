@@ -9,11 +9,35 @@ venv/
 *.egg-info/
 dist/
 build/
+site/
 .eggs/
 
 .env
 .env.local
 .env.production
+.env.*.local
+.opendomain-token
+.opendomain/
+*.env
+!.env.example
+!*.env.example
+
+# Private credentials, certificates, and deployment backups
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.csr
+*.der
+*.dump
+*.backup
+*.bak
+*.sqlite
+*.sqlite3-journal
+secrets/
+certs/
+backups/
 
 *.db
 *.sqlite3

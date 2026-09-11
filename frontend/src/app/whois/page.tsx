@@ -56,9 +56,23 @@ export default function WhoisPage() {
 
         {result && (
           <div className="mt-6 rounded-lg border border-edge bg-ground-raised p-5">
-            <h2 className="font-mono text-sm font-medium text-ink">{result.domain_name}</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-mono text-sm font-medium text-ink">{result.domain_name}</h2>
+              <span className={`rounded-full px-2 py-0.5 font-mono text-xs ${result.lookup_status === "registered" ? "bg-emerald-500/15 text-emerald-400" : result.lookup_status === "not_found" ? "bg-ground-overlay text-ink-faint" : result.lookup_status === "available" ? "bg-amber-500/15 text-amber-300" : "bg-ground-overlay text-ink-faint"}`}>
+                {result.lookup_status}
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-ink-faint">Source: {result.source.toUpperCase()}</p>
+            {(result.lookup_status === "unknown" || result.lookup_status === "not_found") && (
+              <p className="mt-3 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
+                {result.lookup_status === "not_found"
+                  ? "No registration was found. Registrability is not established; check with the intended registry."
+                  : "Registration status could not be confirmed. This does not indicate that the domain is available."}
+              </p>
+            )}
             <dl className="mt-4 space-y-3 text-sm">
               <Row label="Registrar" value={result.registrar || "Unknown"} />
+              <Row label="DNSSEC" value={result.dnssec === null ? "Unknown" : result.dnssec ? "Signed" : "Not signed"} />
               <Row label="Created" value={result.creation_date ? new Date(result.creation_date).toLocaleDateString("en-AU", { year: "numeric", month: "short", day: "numeric" }) : "Unknown"} />
               <Row label="Expires" value={result.expiration_date ? new Date(result.expiration_date).toLocaleDateString("en-AU", { year: "numeric", month: "short", day: "numeric" }) : "Unknown"} />
               {result.nameservers && result.nameservers.length > 0 && (
@@ -82,6 +96,11 @@ export default function WhoisPage() {
                 </div>
               )}
             </dl>
+            {result.warnings.length > 0 && (
+              <div className="mt-4 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
+                {result.warnings.map((warning) => <p key={warning}>{warning}</p>)}
+              </div>
+            )}
           </div>
         )}
       </div>

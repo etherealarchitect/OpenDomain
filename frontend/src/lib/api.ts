@@ -121,6 +121,12 @@ class ApiClient {
   deleteDnsRecord(domainId: string, recordId: string) { return this.delete(`/domains/${domainId}/dns/records/${recordId}`); }
   getDnsTemplates(domainId: string) { return this.get<DnsTemplate[]>(`/domains/${domainId}/dns/templates`); }
   applyDnsTemplate(domainId: string, template: string, params?: Record<string, string>) { return this.post<DnsZoneResponse>(`/domains/${domainId}/dns/templates`, { template, params: params ?? {} }); }
+  discoverDns(domainId: string) { return this.post<DnsDiscoveryResponse>(`/domains/${domainId}/dns/discovery`); }
+  previewDnsImport(domainId: string, records: DnsRecordCreate[]) { return this.post<DnsImportPreviewResponse>(`/domains/${domainId}/dns/import-preview`, { records }); }
+  applyDnsImport(domainId: string, records: DnsRecordCreate[], mode: "merge" | "replace", expectedRevision: string, confirmReplace = false) {
+    return this.post<DnsZoneResponse>(`/domains/${domainId}/dns/import-apply`, { records, mode, expected_revision: expectedRevision, confirm_replace: confirmReplace });
+  }
+  exportDnsZone(domainId: string) { return this.get<{ zone_name: string; zone_file: string }>(`/domains/${domainId}/dns/export`); }
 
   // Contacts
   listContacts() { return this.get<ContactResponse[]>("/contacts/"); }
@@ -171,15 +177,18 @@ export interface UpdateDomainRequest { nameservers?: string[]; auto_renew?: bool
 export interface DomainResponse { id: string; name: string; tld: string; status: string; owner_id: string; auto_renew: boolean; privacy_enabled: boolean; locked: boolean; nameservers: string | null; registration_date: string; expiry_date: string; last_renewed: string | null; price_cents: number; renewal_price_cents: number; created_at: string; }
 export interface TransferInRequest { domain: string; auth_code: string; registrant_contact_id: string; }
 export interface DomainTransferResponse { id: string; domain_id: string; status: string; initiated_at: string; completed_at: string | null; }
-export interface DnsRecordCreate { record_type: string; name: string; content: string; ttl?: number; priority?: number; proxied?: boolean; comment?: string; }
+export interface DnsRecordCreate { record_type: string; name: string; content: string; ttl?: number; priority?: number | null; proxied?: boolean; comment?: string | null; }
 export interface DnsRecordUpdate { name?: string; content?: string; ttl?: number; priority?: number; proxied?: boolean; comment?: string; enabled?: boolean; }
 export interface DnsRecordResponse { id: string; zone_id: string; record_type: string; name: string; content: string; ttl: number; priority: number | null; proxied: boolean; enabled: boolean; comment: string | null; created_at: string; updated_at: string; }
 export interface DnsZoneResponse { id: string; domain_id: string; zone_name: string; primary_ns: string; serial: number; default_ttl: number; dnssec_enabled: boolean; records: DnsRecordResponse[]; created_at: string; updated_at: string; }
 export interface DnsTemplate { name: string; description: string; record_count: number; params: string[]; }
+export interface DnsDiscoveryRecord { record_type: string; name: string; content: string; ttl: number; priority: number | null; warnings: string[]; }
+export interface DnsDiscoveryResponse { domain_name: string; records: DnsDiscoveryRecord[]; queried_types: string[]; warnings: string[]; }
+export interface DnsImportPreviewResponse { additions: DnsRecordCreate[]; unchanged: DnsRecordCreate[]; conflicts: DnsRecordCreate[]; normalized_records: DnsRecordCreate[]; revision: string; warnings: string[]; }
 export interface ContactCreate { label: string; first_name: string; last_name: string; organization?: string; email: string; phone: string; fax?: string; address_line1: string; address_line2?: string; city: string; state_province?: string; postal_code: string; country_code: string; }
 export interface ContactResponse { id: string; user_id: string; label: string; first_name: string; last_name: string; organization: string | null; email: string; phone: string; city: string; country_code: string; created_at: string; }
 export interface AgentResponse { response: string; conversation_id: string; actions_taken?: Array<Record<string, unknown>>; }
-export interface WhoisResult { domain_name: string; registrar: string | null; creation_date: string | null; expiration_date: string | null; updated_date: string | null; nameservers: string[]; status: string[]; dnssec: string | null; }
+export interface WhoisResult { domain_name: string; lookup_status: "registered" | "not_found" | "available" | "unknown"; source: "rdap" | "whois" | "none"; registrar: string | null; creation_date: string | null; expiration_date: string | null; updated_date: string | null; nameservers: string[]; status: string[]; dnssec: boolean | null; warnings: string[]; looked_up_at: string; }
 export interface DomainWatchResponse { id: string; domain_name: string; is_available: boolean; active: boolean; last_checked: string | null; created_at: string; }
 export interface UptimeCheckResponse { id: string; domain_id: string; url: string; check_interval_seconds: number; status: string; last_checked: string | null; response_time_ms: number | null; active: boolean; created_at: string; }
 export interface AlertResponse { id: string; title: string; message: string; alert_type: string; status: string; domain_id: string | null; created_at: string; acknowledged_at: string | null; }

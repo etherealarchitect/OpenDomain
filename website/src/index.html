@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="OpenDomain documentation and generated API reference" />
+    <title>OpenDomain docs</title>
+    <link rel="stylesheet" href="__BASE_PATH__site.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="shell">
+        <p class="eyebrow">&lt;.&gt; OPENDOMAIN</p>
+        <h1>Domain operations, documented.</h1>
+        <p class="lede">A small, static documentation site for the OpenDomain API. Guides explain the current authentication and sandbox boundaries; the endpoint reference is rendered from the checked-in OpenAPI contract.</p>
+        <nav aria-label="Primary navigation">
+          <a class="button" href="#guides">Guides</a>
+          <a class="button secondary" href="#reference">API reference</a>
+          <a class="button secondary" href="__BASE_PATH__openapi.json">Download OpenAPI JSON</a>
+        </nav>
+      </div>
+    </header>
+    <main class="shell">
+      <section id="guides" class="section">
+        <p class="eyebrow">START HERE</p>
+        <h2>Build against what exists today</h2>
+        <div class="cards">
+          <article class="card"><h3>Authentication</h3><p>Registration and login are staged: verify email, complete TOTP MFA, then use the opaque <code>HttpOnly</code> session cookie. Browser clients must send credentials.</p><a href="https://github.com/etherealarchitect/OpenDomain/blob/main/docs/API.md#authentication">Read the auth guide →</a></article>
+          <article class="card"><h3>Sandbox first</h3><p>EPP is simulated by default. Domain registration and transfer examples are useful for local development, but do not create live registrations. Payment, authoritative DNS, and certificate issuance require providers and operational gates.</p><a href="https://github.com/etherealarchitect/OpenDomain/blob/main/README.md#launch-status">See capability boundaries →</a></article>
+          <article class="card"><h3>Run locally</h3><p>Start the development stack with Docker Compose, then use Swagger at <code>/docs</code> or this generated reference. The API is versioned under <code>/api/v1</code>.</p><a href="https://github.com/etherealarchitect/OpenDomain/blob/main/docs/API.md">Open API guide →</a></article>
+        </div>
+      </section>
+      <section id="reference" class="section reference">
+        <div class="section-heading"><div><p class="eyebrow">GENERATED CONTRACT</p><h2>API reference</h2></div><label>Filter endpoints <input id="filter" type="search" placeholder="domains, dns, auth…" /></label></div>
+        <p id="contract-status" class="muted">Loading the local OpenAPI contract…</p>
+        <div id="api-reference"></div>
+      </section>
+    </main>
+    <footer class="shell footer">OpenDomain documentation · generated from FastAPI · <a href="https://github.com/etherealarchitect/OpenDomain">source on GitHub</a></footer>
+    <script src="__BASE_PATH__site.js" defer></script>
+  </body>
+</html>

@@ -8,6 +8,8 @@ import {
   api,
   type DomainResponse,
   type DnsZoneResponse,
+  type DnsDiscoveryRecord,
+  type DnsImportPreviewResponse,
   type DnsRecordCreate,
   type DnsTemplate,
 } from "@/lib/api";
@@ -166,6 +168,11 @@ function DnsTab({
   const [deleting, setDeleting] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [applyingTemplate, setApplyingTemplate] = useState(false);
+  const [discoveredRecords, setDiscoveredRecords] = useState<DnsDiscoveryRecord[] | null>(null);
+  const [discoveryWarnings, setDiscoveryWarnings] = useState<string[]>([]);
+  const [discovering, setDiscovering] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<DnsImportPreviewResponse | null>(null);
 
   const needsPriority = recordType === "MX" || recordType === "SRV";
 
@@ -221,6 +228,46 @@ function DnsTab({
     }
   }
 
+  async function discoverRecords() {
+    setDiscovering(true);
+    setImportPreview(null);
+    setDiscoveredRecords(null);
+    try {
+      const discovery = await api.discoverDns(domain.id);
+      setDiscoveredRecords(discovery.records);
+      setDiscoveryWarnings(discovery.warnings);
+      if (discovery.records.length === 0) {
+        toast("No supported apex records found", "error");
+      } else {
+        const preview = await api.previewDnsImport(domain.id, discovery.records);
+        setImportPreview(preview);
+        setDiscoveryWarnings([...discovery.warnings, ...preview.warnings]);
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "DNS discovery failed", "error");
+    } finally {
+      setDiscovering(false);
+    }
+  }
+
+  async function importDiscovered(mode: "merge" | "replace") {
+    if (!importPreview?.normalized_records.length) return;
+    if (mode === "replace" && !window.confirm("Replace local records, including undiscovered subdomains? Apex nameservers and DNSSEC records are preserved. This does not update authoritative DNS.")) return;
+    setImporting(true);
+    try {
+      await api.applyDnsImport(domain.id, importPreview.normalized_records, mode, importPreview.revision, mode === "replace");
+      toast(`Discovered records ${mode === "replace" ? "replaced" : "merged"}`, "success");
+      setDiscoveredRecords(null);
+      setImportPreview(null);
+      setDiscoveryWarnings([]);
+      await onReload();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Failed to import records", "error");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -252,6 +299,13 @@ function DnsTab({
             </div>
           )}
           <button
+            onClick={discoverRecords}
+            disabled={discovering}
+            className="rounded-md border border-edge px-3 py-1.5 text-xs font-medium text-ink hover:border-focus hover:text-focus disabled:opacity-50 transition-colors"
+          >
+            {discovering ? "Discovering..." : "Discover DNS"}
+          </button>
+          <button
             onClick={() => setShowForm(!showForm)}
             className="rounded-md bg-focus px-3 py-1.5 text-xs font-medium text-ground hover:bg-focus/90 transition-colors"
           >
@@ -259,6 +313,31 @@ function DnsTab({
           </button>
         </div>
       </div>
+
+      {discoveredRecords && (
+        <div className="mt-4 rounded-lg border border-focus/30 bg-focus/5 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-medium text-ink">Discovered public apex records</h3>
+              <p className="mt-1 text-xs text-ink-dim">DNS cannot enumerate arbitrary subdomains. Review before importing.</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => importDiscovered("merge")} disabled={importing || !importPreview || importPreview.conflicts.length > 0} className="rounded-md border border-edge px-3 py-1.5 text-xs text-ink hover:border-focus disabled:opacity-50">
+                {importing ? "Importing..." : "Merge records"}
+              </button>
+              <button onClick={() => importDiscovered("replace")} disabled={importing || !importPreview} className="rounded-md bg-fault px-3 py-1.5 text-xs font-medium text-white hover:bg-fault/90 disabled:opacity-50">
+                Replace local records
+              </button>
+            </div>
+          </div>
+          <div className="mt-3 max-h-48 overflow-auto rounded border border-edge bg-ground p-2 font-mono text-xs text-ink-dim">
+            {discoveredRecords.map((record, index) => <p key={`${record.record_type}-${record.content}-${index}`}>{record.name} {record.ttl} IN {record.record_type}{record.priority !== null ? ` ${record.priority}` : ""} {record.content}</p>)}
+          </div>
+          {importPreview && <p className="mt-2 text-xs text-ink-dim">Merge preview: {importPreview.additions.length} additions, {importPreview.unchanged.length} unchanged, {importPreview.conflicts.length} conflicts. Replacement removes existing unprotected records, including subdomains not shown here.</p>}
+          {importPreview?.conflicts.map((record, index) => <p key={`conflict-${index}`} className="mt-1 font-mono text-xs text-fault">Conflict: {record.name} {record.record_type} {record.content}</p>)}
+          {discoveryWarnings.map((warning) => <p key={warning} className="mt-2 text-xs text-amber-300">{warning}</p>)}
+        </div>
+      )}
 
       {showForm && (
         <form onSubmit={addRecord} className="mt-4 rounded-lg border border-edge bg-ground-raised p-4">

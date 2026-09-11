@@ -1,22 +1,35 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class DnsRecordCreate(BaseModel):
     record_type: str
-    name: str
-    content: str
+    name: str = Field(min_length=1, max_length=253)
+    content: str = Field(min_length=1, max_length=4096)
     ttl: int = 3600
-    priority: int | None = None
+    priority: int | None = Field(default=None, ge=0, le=65535)
     proxied: bool = False
     comment: str | None = None
 
     @field_validator("record_type")
     @classmethod
     def validate_type(cls, v: str) -> str:
-        valid = {"A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA", "PTR", "ALIAS", "TLSA", "DS"}
+        valid = {
+            "A",
+            "AAAA",
+            "CNAME",
+            "MX",
+            "TXT",
+            "NS",
+            "SRV",
+            "CAA",
+            "PTR",
+            "ALIAS",
+            "TLSA",
+            "DS",
+        }
         if v.upper() not in valid:
             raise ValueError(f"Invalid record type. Must be one of: {', '.join(sorted(valid))}")
         return v.upper()
@@ -24,8 +37,8 @@ class DnsRecordCreate(BaseModel):
     @field_validator("ttl")
     @classmethod
     def validate_ttl(cls, v: int) -> int:
-        if v < 60 or v > 86400:
-            raise ValueError("TTL must be between 60 and 86400 seconds")
+        if v < 0 or v > 2147483647:
+            raise ValueError("TTL must be between 0 and 2147483647 seconds")
         return v
 
 
@@ -77,6 +90,50 @@ class DnsZoneExport(BaseModel):
 
 class BulkDnsRecordCreate(BaseModel):
     records: list[DnsRecordCreate]
+
+
+class DnsDiscoveryRecord(BaseModel):
+    record_type: str
+    name: str
+    content: str
+    ttl: int
+    priority: int | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+    model_config = {"from_attributes": True}
+
+
+class DnsDiscoveryResponse(BaseModel):
+    domain_name: str
+    records: list[DnsDiscoveryRecord]
+    queried_types: list[str]
+    warnings: list[str] = []
+
+
+class DnsImportPreviewRequest(BaseModel):
+    records: list[DnsRecordCreate] = Field(min_length=1, max_length=500)
+
+
+class DnsImportPreviewResponse(BaseModel):
+    additions: list[DnsRecordCreate]
+    unchanged: list[DnsRecordCreate]
+    conflicts: list[DnsRecordCreate]
+    normalized_records: list[DnsRecordCreate]
+    revision: str
+    warnings: list[str] = Field(default_factory=list)
+
+
+class DnsImportApplyRequest(DnsImportPreviewRequest):
+    mode: str
+    expected_revision: str = Field(pattern=r"^[a-f0-9]{64}$")
+    confirm_replace: bool = False
+
+    @field_validator("mode")
+    @classmethod
+    def validate_mode(cls, value: str) -> str:
+        if value not in {"merge", "replace"}:
+            raise ValueError("mode must be either 'merge' or 'replace'")
+        return value
 
 
 class DnsTemplateApply(BaseModel):

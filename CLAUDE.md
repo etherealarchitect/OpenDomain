@@ -7,7 +7,7 @@ Open-source domain registrar platform with integrated AI agent.
 - **Backend**: Python 3.12+ / FastAPI / SQLAlchemy (async) / Alembic
 - **Frontend**: Next.js 15 / TypeScript / Tailwind CSS
 - **Database**: PostgreSQL 16 + Redis
-- **DNS**: PowerDNS integration + native zone management
+- **DNS**: Native application-managed zone data; provider publication is not included
 - **AI Agent**: Claude-powered agent with tool-use for all platform actions
 - **EPP**: Async EPP client for registry communication (RFC 5730-5734)
 - **Infrastructure**: Docker Compose for local deployment
@@ -55,7 +55,7 @@ make lint         # Lint all code
 ## Key Design Decisions
 
 - EPP client is async (asyncio) for non-blocking registry communication
-- DNS zones stored in PostgreSQL, synced to PowerDNS via API or native backend
+- DNS zone data is stored in PostgreSQL; authoritative provider publication is a deployment-specific integration
 - AI agent uses Claude tool-use to execute any platform action the user describes
 - All prices in minor currency units (cents) to avoid floating point
 - Domain lifecycle follows ICANN standards (pendingCreate, active, pendingTransfer, etc.)

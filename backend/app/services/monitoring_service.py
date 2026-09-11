@@ -2,9 +2,6 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import httpx
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from backend.app.models.domain import Domain
 from backend.app.models.monitoring import (
     Alert,
@@ -16,6 +13,8 @@ from backend.app.models.monitoring import (
     SslMonitor,
     UptimeCheck,
 )
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class MonitoringService:
@@ -35,7 +34,9 @@ class MonitoringService:
 
     async def list_domain_watches(self, user_id: uuid.UUID) -> list[DomainWatch]:
         result = await self.db.execute(
-            select(DomainWatch).where(DomainWatch.user_id == user_id).order_by(DomainWatch.created_at.desc())
+            select(DomainWatch)
+            .where(DomainWatch.user_id == user_id)
+            .order_by(DomainWatch.created_at.desc())
         )
         return list(result.scalars().all())
 
@@ -51,13 +52,25 @@ class MonitoringService:
     async def check_domain_watches(self):
         result = await self.db.execute(select(DomainWatch).where(DomainWatch.active.is_(True)))
         watches = result.scalars().all()
+        from backend.app.services.whois_service import WhoisService
+
+        whois_service = WhoisService()
         for watch in watches:
             try:
-                from backend.app.services.whois_service import WhoisService
-                whois = WhoisService()
-                info = await whois.lookup(watch.domain_name)
+                info = await whois_service.lookup(watch.domain_name)
                 was_available = watch.is_available
-                watch.is_available = info.registrar is None
+                # Registrar data is optional in both RDAP and WHOIS.  Only an
+                # authoritative RDAP "available" response can mark a watch available.
+                if info.lookup_status == "available":
+                    # Kept for registry-backed implementations that can prove
+                    # availability; RDAP 404 deliberately returns not_found.
+                    watch.is_available = True
+                elif info.lookup_status == "registered":
+                    watch.is_available = False
+                else:
+                    # Keep the prior state on an inconclusive/failed lookup.
+                    watch.last_checked = datetime.now(UTC)
+                    continue
                 watch.last_checked = datetime.now(UTC)
                 if watch.is_available and not was_available:
                     alert = Alert(
@@ -68,7 +81,8 @@ class MonitoringService:
                     )
                     self.db.add(alert)
             except Exception:
-                pass
+                # A failed lookup must not change availability state.
+                continue
         await self.db.flush()
 
     async def create_uptime_check(self, user_id: uuid.UUID, data) -> UptimeCheck:
@@ -85,7 +99,9 @@ class MonitoringService:
 
     async def list_uptime_checks(self, user_id: uuid.UUID) -> list[UptimeCheck]:
         result = await self.db.execute(
-            select(UptimeCheck).where(UptimeCheck.user_id == user_id).order_by(UptimeCheck.created_at.desc())
+            select(UptimeCheck)
+            .where(UptimeCheck.user_id == user_id)
+            .order_by(UptimeCheck.created_at.desc())
         )
         return list(result.scalars().all())
 
@@ -109,7 +125,9 @@ class MonitoringService:
                     resp = await client.head(check.url)
                     elapsed_ms = int((datetime.now(UTC) - start).total_seconds() * 1000)
                     check.response_time_ms = elapsed_ms
-                    check.status = CheckStatus.UP if resp.status_code < 500 else CheckStatus.DEGRADED
+                    check.status = (
+                        CheckStatus.UP if resp.status_code < 500 else CheckStatus.DEGRADED
+                    )
                 except Exception:
                     check.status = CheckStatus.DOWN
                     check.response_time_ms = None
@@ -130,7 +148,9 @@ class MonitoringService:
 
     async def get_ssl_info(self, domain_id: uuid.UUID, user_id: uuid.UUID) -> SslMonitor | None:
         result = await self.db.execute(
-            select(SslMonitor).where(SslMonitor.domain_id == domain_id, SslMonitor.user_id == user_id)
+            select(SslMonitor).where(
+                SslMonitor.domain_id == domain_id, SslMonitor.user_id == user_id
+            )
         )
         return result.scalar_one_or_none()
 
@@ -160,13 +180,18 @@ class MonitoringService:
 
     async def list_alert_rules(self, user_id: uuid.UUID) -> list[AlertRule]:
         result = await self.db.execute(
-            select(AlertRule).where(AlertRule.user_id == user_id).order_by(AlertRule.created_at.desc())
+            select(AlertRule)
+            .where(AlertRule.user_id == user_id)
+            .order_by(AlertRule.created_at.desc())
         )
         return list(result.scalars().all())
 
     async def list_alerts(self, user_id: uuid.UUID, limit: int = 50) -> list[Alert]:
         result = await self.db.execute(
-            select(Alert).where(Alert.user_id == user_id).order_by(Alert.created_at.desc()).limit(limit)
+            select(Alert)
+            .where(Alert.user_id == user_id)
+            .order_by(Alert.created_at.desc())
+            .limit(limit)
         )
         return list(result.scalars().all())
 

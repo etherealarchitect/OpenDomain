@@ -1,3 +1,5 @@
+# Development-only stack. It intentionally exposes local service ports and uses
+# placeholder credentials. Do not deploy this file to the public internet.
 services:
   db:
     image: postgres:16-alpine

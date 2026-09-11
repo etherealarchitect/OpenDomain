@@ -667,13 +667,38 @@ Export the DNS zone as a BIND-format zone file.
 
 `POST /domains/{domain_id}/dns/import`
 
-Import a BIND-format zone file, replacing existing records.
+Legacy BIND import that replaces existing records. For reviewable, concurrency-safe imports, use the preview/apply pair below.
 
 **Auth required**: Yes
 
 **Request body**: `zone_file` (string) — BIND zone file contents.
 
 **Response** (200): Updated zone object with all imported records.
+
+### Preview and apply a DNS import
+
+`POST /domains/{domain_id}/dns/import-preview`
+
+Preview a list of records without changing the zone. The response includes `additions`, `unchanged`, `conflicts`, `normalized_records`, a SHA-256 `revision`, and `warnings`. Send the returned revision back unchanged when applying the reviewed result.
+
+`POST /domains/{domain_id}/dns/import-apply`
+
+Apply a reviewed import with an explicit `mode` (`merge` or `replace`), `records`, `expected_revision`, and optional `confirm_replace`. The server returns `409` when the zone revision changed since preview. Replacement requires explicit confirmation and preserves apex `NS`, `SOA`, `DNSKEY`, and `DS` records; provider publication is not implied.
+
+```json
+{
+  "records": [{"record_type":"A","name":"www","content":"203.0.113.10"}]
+}
+```
+
+```json
+{
+  "records": [{"record_type":"A","name":"www","content":"203.0.113.10"}],
+  "mode": "merge",
+  "expected_revision": "<64-character-preview-revision>",
+  "confirm_replace": false
+}
+```
 
 ---
 
