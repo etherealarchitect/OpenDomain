@@ -1,14 +1,22 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Lato, Open_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
 
-const inter = Inter({
+const lato = Lato({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-inter",
+  variable: "--font-lato",
+  weight: ["300", "400", "700", "900"],
+});
+
+const openSans = Open_Sans({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-open-sans",
+  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -100,12 +108,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${lato.variable} ${openSans.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
         <meta name="theme-color" content="#111113" />
       </head>
-      <body className="min-h-screen bg-background font-sans text-sm text-text-primary antialiased overflow-hidden">
+      <body className="min-h-screen bg-background font-body text-foreground antialiased overflow-hidden">
         <Providers>
           <div className="flex h-screen overflow-hidden">
             <Sidebar />

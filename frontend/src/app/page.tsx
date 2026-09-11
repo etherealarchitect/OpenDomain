@@ -1,141 +1,190 @@
-"use client";
+import { Lato, Open_Sans, JetBrains_Mono } from "next/font/google";
 
-import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+const lato = Lato({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-lato",
+  weight: ["300", "400", "700", "900"],
+});
 
-function Logo({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 32 32"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-hidden="true"
-    >
-      <path
-        d="M6 16L14 8V12L10 16L14 20V24L6 16Z"
-        fill="currentColor"
-        opacity="0.5"
-      />
-      <circle cx="21" cy="16" r="5" fill="#6d8aff" />
-    </svg>
-  );
-}
+const openSans = Open_Sans({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-open-sans",
+  weight: ["300", "400", "500", "600", "700", "800"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-jetbrains-mono",
+});
 
 export default function Home() {
-  const [query, setQuery] = useState("");
-  const router = useRouter();
-
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const q = query.trim();
-    if (!q) return;
-    router.push(`/domains/search?q=${encodeURIComponent(q)}`);
-  }
-
   return (
-    <div className="flex min-h-screen flex-col">
-      <nav className="flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-2">
-          <Logo className="h-6 w-6 text-ink" />
-          <span className="font-mono text-sm tracking-tight text-ink-dim">
-            opendomain
-          </span>
-        </div>
-        <div className="flex gap-6 text-sm text-ink-dim">
-          <Link href="/login" className="hover:text-ink transition-colors">
-            Sign in
-          </Link>
-          <Link
-            href="/register"
-            className="rounded-md bg-ground-raised border border-edge px-3 py-1 hover:text-ink transition-colors"
-          >
-            Get started
-          </Link>
-        </div>
-      </nav>
-
-      <main className="flex flex-1 flex-col items-center justify-center px-6 pb-24">
-        <div className="w-full max-w-xl">
-          <Logo className="mb-6 h-10 w-10 text-ink" />
-
-          <h1 className="mb-2 text-3xl font-semibold tracking-tight text-ink">
-            Find your domain
-          </h1>
-          <p className="mb-1 text-ink-dim" style={{ maxWidth: "48ch" }}>
-            Search, register, and manage domains from your own infrastructure.
-            No vendor lock-in.
-          </p>
-          <p
-            className="mb-8 text-sm text-ink-faint"
-            style={{ maxWidth: "48ch" }}
-          >
-            The first open source agentic domain registrar.
-          </p>
-
-          <form onSubmit={handleSearch} className="group relative">
-            <div className="absolute -inset-px rounded-lg bg-edge opacity-0 transition-opacity group-focus-within:opacity-100" />
-            <div className="relative flex items-center rounded-lg border border-edge bg-ground-raised">
-              <span className="pl-4 font-mono text-sm text-ink-faint select-none">
-                $
-              </span>
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="yourproject.dev"
-                className="flex-1 bg-transparent px-3 py-4 font-mono text-sm text-ink placeholder:text-ink-faint focus:outline-none"
-              />
-              <button
-                type="submit"
-                className="mr-2 rounded-md bg-focus px-4 py-2 text-sm font-medium text-ground hover:bg-focus/90 transition-colors"
+    <div className={`${lato.variable} ${openSans.variable} ${jetbrainsMono.variable}`}>
+      <header className="absolute top-0 left-0 right-0 p-6 sm:p-8">
+        <nav className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <div className="absolute -inset-2 bg-gradient-to-r from-primary/20 to-accent/20 blur-xl opacity-40"></div>
+              <svg
+                viewBox="0 0 32 32"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="relative h-8 w-8 text-primary"
               >
-                Search
-              </button>
+                <circle cx="16" cy="16" r="12" fill="currentColor" opacity="0.2" />
+                <path
+                  d="M16 6L22 12L16 18L10 12L16 6Z"
+                  fill="currentColor"
+                />
+                <circle cx="16" cy="16" r="2" fill="white" />
+              </svg>
             </div>
-          </form>
+            <div>
+              <div className="text-base font-heading font-bold tracking-tight text-foreground">
+                OpenDomain
+              </div>
+              <div className="text-xs font-mono text-muted-foreground tracking-tight mt-0.5">
+                AI-Powered Domain Management
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <button className="font-medium text-sm px-4 py-2 rounded-lg border border-border hover:border-border/60 bg-background hover:bg-sidebar-background/50 transition-all duration-200">
+              Sign In
+            </button>
+            <button className="font-medium text-sm px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 shadow-sm hover:shadow-md">
+              Get Started
+            </button>
+          </div>
+        </nav>
+      </header>
 
-          <div className="mt-3 flex gap-3 font-mono text-xs text-ink-faint">
-            <span>.com</span>
-            <span>.dev</span>
-            <span>.io</span>
-            <span>.app</span>
-            <span>.net</span>
-            <span>.org</span>
-            <span>.co</span>
+      <main className="min-h-screen flex flex-col items-center justify-center px-6 py-24 sm:py-32 max-w-2xl mx-auto">
+        <div className="relative">
+          <div className="absolute -inset-12 bg-gradient-radial from-primary/10 via-transparent to-transparent opacity-40"></div>
+          <div className="absolute -inset-12 bg-gradient-to-br from-accent/5 via-transparent to-primary/5 blur-3xl opacity-50"></div>
+
+          <div className="relative z-10 text-center">
+            <div className="mb-8 inline-flex items-center gap-2 font-mono text-xs text-muted-foreground px-3 py-1.5 rounded-full border border-border bg-background/50 backdrop-blur-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent/70"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+              </span>
+              <span>Active AI Agent Session</span>
+            </div>
+
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-heading font-black tracking-tighter text-foreground mb-6">
+              Manage Your
+              <span className="block bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+                Domain Fleet
+              </span>
+            </h1>
+
+            <p className="text-lg sm:text-xl text-muted-foreground mb-10 max-w-xl mx-auto leading-relaxed">
+              Search, register, configure DNS, monitor uptime, and trade domains—all from a single
+              AI-powered terminal interface.
+            </p>
+
+            <div className="relative bg-gradient-to-br from-background via-background to-background/80 border border-border rounded-2xl p-8 mb-10 shadow-xl backdrop-blur-sm">
+              <div className="absolute top-0 left-6 -translate-y-1/2 bg-background px-4 py-1.5 rounded-full border border-border">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs">AI Terminal</span>
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 rounded-full bg-destructive"></span>
+                    <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="font-mono text-sm space-y-2 text-left">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">$</span>
+                  <div className="bg-sidebar-background/50 rounded-lg px-3 py-2 border border-border flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-primary">opendomain</span>
+                      <span className="text-muted-foreground">agent</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <span className="text-accent-foreground shrink-0">&gt;</span>
+                  <div className="bg-sidebar-background/50 rounded-lg px-3 py-2 border border-border flex-1">
+                    <input
+                      type="text"
+                      placeholder="Find domains for my new AI startup"
+                      className="w-full bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none"
+                      autoComplete="off"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                <div className="text-xs text-muted-foreground mt-4 flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sidebar-background rounded-lg border border-border">
+                    <span>⌘</span>
+                    <span>Enter</span>
+                    <span className="text-accent">to execute</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sidebar-background rounded-lg border border-border">
+                    <span>↑</span>
+                    <span>↓</span>
+                    <span className="text-accent">to navigate</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3 justify-center">
+              <div className="inline-flex items-center gap-2 px prefix-3 py-1.5 rounded-lg bg-sidebar-background/50 border border-border">
+                <span className="text-xs text-accent">✓</span>
+                <span className="text-sm">Real-time Domain Search</span>
+              </div>
+              <div className="inline-flex items-center gap-2 px prefix-3 py-1.5 rounded-lg bg-sidebar-background/50 border border-border">
+                <span className="text-xs text-accent">✓</span>
+                <span className="text-sm">AI-Powered DNS Config</span>
+              </div>
+              <div className="inline-flex items-center gap-2 px prefix-3 py-1.5 rounded-lg bg-sidebar-background/50 border border-border">
+                <span className="text-xs text-accent">✓</span>
+                <span className="text-sm">Terminal-First Interface</span>
+              </div>
+              <div className="inline-flex items-center gap-2 px prefix-3 py-1.5 rounded-lg bg-sidebar-background/50 border border-border">
+                <span className="text-xs text-accent">✓</span>
+                <span className="text-sm">Open Source & Self-Hosted</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="mt-20 grid w-full max-w-3xl grid-cols-1 gap-px overflow-hidden rounded-lg border border-edge bg-edge md:grid-cols-3">
-          <Capability
-            title="DNS management"
-            detail="Full zone editor with templates for GitHub Pages, Vercel, Google Workspace, and more."
-          />
-          <Capability
-            title="AI agent"
-            detail="Describe what you need in plain language. The agent handles the API calls."
-          />
-          <Capability
-            title="Terminal-first"
-            detail="Complete CLI for every action. Pipe, script, automate."
-          />
+        <div className="mt-12 text-center">
+          <div className="text-xs font-mono text-muted-foreground mb-2">
+            Built with Claude AI • FastAPI • Next.js • PostgreSQL
+          </div>
+          <div className="text-2xs font-mono text-muted-foreground/60">
+            Version 1.0.0 • Platform Status: Operational
+          </div>
         </div>
       </main>
 
-      <footer className="border-t border-edge px-6 py-4 text-center text-xs text-ink-faint">
-        open source · self-hosted · yours
+      <footer className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 border-t border-border/30">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
+            <span>Documentation</span>
+            <span>API</span>
+            <span>CLI</span>
+            <span>Status</span>
+            <span>GitHub</span>
+            <span>Twitter</span>
+          </div>
+          <div className="text-2xs font-mono text-muted-foreground/60">
+            © 2024 OpenDomain • AGPL-3.0 License • opendomain.etherealcode.org
+          </div>
+        </div>
       </footer>
-    </div>
-  );
-}
-
-function Capability({ title, detail }: { title: string; detail: string }) {
-  return (
-    <div className="bg-ground-raised p-5">
-      <h3 className="text-sm font-medium text-ink">{title}</h3>
-      <p className="mt-1 text-xs leading-relaxed text-ink-dim">{detail}</p>
     </div>
   );
 }
