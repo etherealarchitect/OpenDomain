@@ -9,8 +9,9 @@ import {
   type ApiKeyCreatedResponse,
 } from "@/lib/api";
 import { toast } from "@/components/ui/toast";
+import { PALETTES, PALETTE_KEYS, applyPalette, getStoredPalette } from "@/lib/palettes";
 
-type Tab = "webhooks" | "apikeys";
+type Tab = "theme" | "webhooks" | "apikeys";
 
 const WEBHOOK_EVENTS = [
   "DOMAIN_REGISTERED", "DOMAIN_RENEWED", "DOMAIN_EXPIRED", "DOMAIN_TRANSFERRED",
@@ -18,7 +19,8 @@ const WEBHOOK_EVENTS = [
 ];
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState<Tab>("webhooks");
+  const [tab, setTab] = useState<Tab>("theme");
+  const [activePalette, setActivePalette] = useState("terminal");
   const [webhooks, setWebhooks] = useState<WebhookResponse[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKeyResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +34,7 @@ export default function SettingsPage() {
   const [newKey, setNewKey] = useState<string | null>(null);
 
   useEffect(() => {
+    setActivePalette(getStoredPalette());
     Promise.all([
       api.listWebhooks().catch(() => []),
       api.listApiKeys().catch(() => []),
@@ -103,7 +106,7 @@ export default function SettingsPage() {
         <h1 className="text-xl font-semibold text-ink">Settings</h1>
 
         <div className="mt-6 flex gap-1 rounded-md border border-edge bg-ground-raised p-0.5">
-          {(["webhooks", "apikeys"] as Tab[]).map((t) => (
+          {(["theme", "webhooks", "apikeys"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -111,7 +114,7 @@ export default function SettingsPage() {
                 tab === t ? "bg-ground-overlay text-ink" : "text-ink-faint hover:text-ink-dim"
               }`}
             >
-              {t === "webhooks" ? "Webhooks" : "API Keys"}
+              {t === "theme" ? "Theme" : t === "webhooks" ? "Webhooks" : "API Keys"}
             </button>
           ))}
         </div>
@@ -120,6 +123,76 @@ export default function SettingsPage() {
           <p className="mt-8 text-sm text-ink-faint">Loading...</p>
         ) : (
           <div className="mt-6">
+            {tab === "theme" && (
+              <>
+                <p className="text-sm text-ink-dim">
+                  Choose a color palette for the interface.
+                </p>
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {PALETTE_KEYS.map((key) => {
+                    const p = PALETTES[key];
+                    const isActive = activePalette === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => { applyPalette(key); setActivePalette(key); toast(`Switched to ${p.name}`, "success"); }}
+                        className={`group relative rounded-lg border p-4 text-left transition-all ${
+                          isActive
+                            ? "border-focus ring-1 ring-focus"
+                            : "border-edge hover:border-ink-faint"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-ink">{p.name}</span>
+                          {isActive && (
+                            <span className="rounded-full bg-focus px-2 py-0.5 text-[10px] font-medium text-ground">Active</span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs text-ink-faint">{p.description}</p>
+                        <div className="mt-3 flex gap-1.5">
+                          {[p.ground, p.groundRaised, p.groundOverlay, p.edge, p.ink, p.focus, p.live, p.caution, p.fault].map((color, i) => (
+                            <div
+                              key={i}
+                              className="h-5 w-5 rounded-full border border-white/10"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-8">
+                  <h3 className="text-sm font-medium text-ink">Preview</h3>
+                  <div className="mt-3 rounded-lg border border-edge bg-ground-raised p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-md bg-focus" />
+                      <div>
+                        <p className="text-sm font-medium text-ink">example.com</p>
+                        <p className="text-xs text-ink-dim">Registered · Auto-renew on</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-live/10 px-2 py-0.5 text-xs text-live">Active</span>
+                      <span className="rounded-full bg-caution/10 px-2 py-0.5 text-xs text-caution">Expiring</span>
+                      <span className="rounded-full bg-fault/10 px-2 py-0.5 text-xs text-fault">Expired</span>
+                      <span className="rounded-full bg-focus/10 px-2 py-0.5 text-xs text-focus">Transfer</span>
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <button className="rounded-md bg-focus px-3 py-1.5 text-xs font-medium text-ground">Primary</button>
+                      <button className="rounded-md border border-edge px-3 py-1.5 text-xs text-ink-dim">Secondary</button>
+                    </div>
+                    <div className="mt-4 rounded-md border border-edge bg-ground p-3">
+                      <p className="font-mono text-xs text-ink-faint">$ opendomain domains list</p>
+                      <p className="font-mono text-xs text-live mt-1">example.com    active     2027-09-11</p>
+                      <p className="font-mono text-xs text-caution">mysite.io      expiring   2026-10-01</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
             {tab === "webhooks" && (
               <>
                 <div className="flex items-center justify-between">

@@ -1,0 +1,29 @@
+app = "opendomain-web"
+primary_region = "syd"
+
+[build]
+  dockerfile = "infrastructure/docker/Dockerfile.frontend.prod"
+
+  [build.args]
+    NEXT_PUBLIC_API_URL = "https://opendomain-api.fly.dev"
+
+[env]
+  PORT = "3000"
+  NEXT_PUBLIC_API_URL = "https://opendomain-api.fly.dev"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  cpus = 1
