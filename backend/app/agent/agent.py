@@ -27,20 +27,26 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are the OpenDomain assistant, an AI agent for an open-source domain registrar platform.
 
-You help users with all domain management tasks:
-- Searching for and registering domains
-- Managing DNS records (A, AAAA, CNAME, MX, TXT, NS, SRV, CAA)
-- Transferring domains in from other registrars
-- Configuring WHOIS privacy, auto-renewal, and transfer locks
-- Applying DNS templates for popular services (GitHub Pages, Google Workspace, Vercel, etc.)
-- Looking up WHOIS information
-- Managing contacts for domain registration
-- Exporting DNS zone files
+You help users with ALL platform tasks:
+- Searching for and registering domains (single or bulk)
+- Managing DNS records and applying templates (GitHub Pages, Vercel, Google Workspace, etc.)
+- DNSSEC management (enable, disable, key rotation)
+- Domain transfers in/out
+- WHOIS lookups and privacy management
+- Contact management for domain registration
+- Monitoring: domain expiry alerts, uptime checks, domain availability watches, SSL tracking
+- Webhooks: event-driven HTTP callbacks for domain events
+- Marketplace: listing domains for sale, browsing, making offers
+- Email forwarding: set up forwarding rules for any domain
+- SSL/TLS certificates: request, renew, revoke via Let's Encrypt
+- Billing: view invoices, transactions, payment methods
+- API keys: create and manage programmatic access tokens
+- Bulk operations: register, renew, lock/unlock multiple domains at once
+- DNS zone export/import in BIND format
 
-Be concise and action-oriented. When the user describes what they want, use the appropriate tool to do it.
-If you need more information (like which domain or a missing parameter), ask.
-When showing results, format them clearly. For DNS records, use a table-like format.
-Always confirm destructive actions (deleting domains/records, disabling privacy) before executing."""
+Be concise and action-oriented. When the user describes what they want, use the appropriate tool.
+If you need more information, ask. Format results clearly.
+Always confirm destructive actions before executing."""
 
 _conversations: dict[str, list[dict]] = {}
 
@@ -201,6 +207,33 @@ class OpenDomainAgent:
                     export = await self.dns_service.export_zone_file(domain.id, self.user.id)
                     return {"zone_name": export.zone_name, "zone_file": export.zone_file}
 
+                case "manage_monitoring":
+                    return await self._handle_monitoring(tool_input)
+
+                case "manage_webhooks":
+                    return await self._handle_webhooks(tool_input)
+
+                case "manage_marketplace":
+                    return await self._handle_marketplace(tool_input)
+
+                case "manage_email_forwards":
+                    return await self._handle_email_forwards(tool_input)
+
+                case "manage_ssl":
+                    return await self._handle_ssl(tool_input)
+
+                case "manage_billing":
+                    return await self._handle_billing(tool_input)
+
+                case "manage_api_keys":
+                    return await self._handle_api_keys(tool_input)
+
+                case "bulk_operations":
+                    return await self._handle_bulk(tool_input)
+
+                case "manage_dnssec":
+                    return await self._handle_dnssec(tool_input)
+
                 case _:
                     return {"error": f"Unknown tool: {tool_name}"}
 
@@ -298,6 +331,184 @@ class OpenDomainAgent:
             return {"deleted": True}
 
         return {"error": f"Unknown contact action: {action}"}
+
+
+    async def _handle_monitoring(self, tool_input: dict) -> dict:
+        from backend.app.services.monitoring_service import MonitoringService
+        svc = MonitoringService(self.db)
+        action = tool_input["action"]
+        if action == "create_watch":
+            watch = await svc.create_domain_watch(self.user.id, tool_input.get("domain_name", ""))
+            return {"watch_id": str(watch.id), "domain": watch.domain_name}
+        elif action == "list_watches":
+            watches = await svc.list_domain_watches(self.user.id)
+            return {"watches": [{"id": str(w.id), "domain": w.domain_name, "available": w.is_available} for w in watches]}
+        elif action == "create_uptime":
+            check = await svc.create_uptime_check(self.user.id, tool_input)
+            return {"check_id": str(check.id), "url": check.url}
+        elif action == "list_uptime":
+            checks = await svc.list_uptime_checks(self.user.id)
+            return {"checks": [{"id": str(c.id), "url": c.url, "status": c.status} for c in checks]}
+        elif action == "list_alerts":
+            alerts = await svc.list_alerts(self.user.id)
+            return {"alerts": [{"id": str(a.id), "type": a.alert_type, "title": a.title, "status": a.status} for a in alerts]}
+        elif action == "acknowledge_alert":
+            await svc.acknowledge_alert(uuid.UUID(tool_input["alert_id"]), self.user.id)
+            return {"acknowledged": True}
+        return {"error": f"Unknown monitoring action: {action}"}
+
+    async def _handle_webhooks(self, tool_input: dict) -> dict:
+        from backend.app.services.webhook_service import WebhookService
+        svc = WebhookService(self.db)
+        action = tool_input["action"]
+        if action == "create":
+            wh = await svc.create_webhook(self.user.id, tool_input)
+            return {"webhook_id": str(wh.id), "url": wh.url}
+        elif action == "list":
+            webhooks = await svc.list_webhooks(self.user.id)
+            return {"webhooks": [{"id": str(w.id), "url": w.url, "events": w.events} for w in webhooks]}
+        elif action == "delete":
+            await svc.delete_webhook(uuid.UUID(tool_input["webhook_id"]), self.user.id)
+            return {"deleted": True}
+        return {"error": f"Unknown webhook action: {action}"}
+
+    async def _handle_marketplace(self, tool_input: dict) -> dict:
+        from backend.app.services.marketplace_service import MarketplaceService
+        svc = MarketplaceService(self.db)
+        action = tool_input["action"]
+        if action == "browse":
+            listings = await svc.list_listings()
+            return {"listings": [{"id": str(l.id), "price_cents": l.asking_price_cents, "status": l.status} for l in listings]}
+        elif action == "create_listing":
+            domain = await self._find_domain_by_name(tool_input["domain_name"])
+            if not domain:
+                return {"error": f"Domain '{tool_input['domain_name']}' not found"}
+            listing = await svc.create_listing(self.user.id, {"domain_id": str(domain.id), "asking_price_cents": tool_input["price_cents"]})
+            return {"listing_id": str(listing.id)}
+        elif action == "make_offer":
+            offer = await svc.create_offer(self.user.id, {"listing_id": tool_input["listing_id"], "amount_cents": tool_input["offer_amount_cents"], "message": tool_input.get("message")})
+            return {"offer_id": str(offer.id)}
+        elif action == "my_offers":
+            offers = await svc.list_my_offers(self.user.id)
+            return {"offers": [{"id": str(o.id), "amount_cents": o.amount_cents, "status": o.status} for o in offers]}
+        return {"error": f"Unknown marketplace action: {action}"}
+
+    async def _handle_email_forwards(self, tool_input: dict) -> dict:
+        from backend.app.services.email_forward_service import EmailForwardService
+        svc = EmailForwardService(self.db)
+        domain = await self._find_domain_by_name(tool_input["domain_name"])
+        if not domain:
+            return {"error": f"Domain '{tool_input['domain_name']}' not found"}
+        action = tool_input["action"]
+        if action == "create":
+            fwd = await svc.create_forward(self.user.id, {"domain_id": str(domain.id), "source_address": tool_input["source_address"], "destination_email": tool_input["destination_email"]})
+            return {"forward_id": str(fwd.id), "source": fwd.source_address, "destination": fwd.destination_email}
+        elif action == "list":
+            forwards = await svc.list_forwards(domain.id, self.user.id)
+            return {"forwards": [{"id": str(f.id), "source": f.source_address, "destination": f.destination_email, "active": f.active} for f in forwards]}
+        elif action == "delete":
+            await svc.delete_forward(uuid.UUID(tool_input["forward_id"]), self.user.id)
+            return {"deleted": True}
+        return {"error": f"Unknown email forward action: {action}"}
+
+    async def _handle_ssl(self, tool_input: dict) -> dict:
+        from backend.app.services.ssl_service import SslService
+        svc = SslService(self.db)
+        action = tool_input["action"]
+        if action == "request":
+            domain = await self._find_domain_by_name(tool_input["domain_name"])
+            if not domain:
+                return {"error": f"Domain '{tool_input['domain_name']}' not found"}
+            cert = await svc.request_certificate(self.user.id, {"domain_id": str(domain.id)})
+            return {"cert_id": str(cert.id), "status": cert.status}
+        elif action == "list":
+            certs = await svc.list_certificates(self.user.id)
+            return {"certificates": [{"id": str(c.id), "status": c.status, "domain_names": c.domain_names} for c in certs]}
+        elif action == "revoke":
+            await svc.revoke_certificate(uuid.UUID(tool_input["cert_id"]), self.user.id)
+            return {"revoked": True}
+        elif action == "renew":
+            cert = await svc.renew_certificate(uuid.UUID(tool_input["cert_id"]), self.user.id)
+            return {"cert_id": str(cert.id), "status": cert.status}
+        return {"error": f"Unknown SSL action: {action}"}
+
+    async def _handle_billing(self, tool_input: dict) -> dict:
+        from backend.app.services.billing_service import BillingService
+        svc = BillingService(self.db)
+        action = tool_input["action"]
+        if action == "list_invoices":
+            invoices = await svc.list_invoices(self.user.id)
+            return {"invoices": [{"id": str(i.id), "number": i.invoice_number, "status": i.status, "total_cents": i.total_cents} for i in invoices]}
+        elif action == "list_transactions":
+            txs = await svc.list_transactions(self.user.id)
+            return {"transactions": [{"id": str(t.id), "type": t.transaction_type, "amount_cents": t.amount_cents, "description": t.description} for t in txs]}
+        elif action == "list_payment_methods":
+            methods = await svc.list_payment_methods(self.user.id)
+            return {"payment_methods": [{"id": str(m.id), "type": m.method_type, "label": m.label, "default": m.is_default} for m in methods]}
+        return {"error": f"Unknown billing action: {action}"}
+
+    async def _handle_api_keys(self, tool_input: dict) -> dict:
+        from backend.app.services.api_key_service import ApiKeyService
+        svc = ApiKeyService(self.db)
+        action = tool_input["action"]
+        if action == "create":
+            key, raw = await svc.create_key(self.user.id, {"name": tool_input["name"], "scopes": tool_input.get("scopes")})
+            return {"key_id": str(key.id), "name": key.name, "key": raw, "prefix": key.prefix}
+        elif action == "list":
+            keys = await svc.list_keys(self.user.id)
+            return {"keys": [{"id": str(k.id), "name": k.name, "prefix": k.prefix, "active": k.active} for k in keys]}
+        elif action == "revoke":
+            await svc.revoke_key(uuid.UUID(tool_input["key_id"]), self.user.id)
+            return {"revoked": True}
+        return {"error": f"Unknown API key action: {action}"}
+
+    async def _handle_bulk(self, tool_input: dict) -> dict:
+        from backend.app.services.bulk_service import BulkService
+        svc = BulkService(self.db)
+        action = tool_input["action"]
+        if action == "register":
+            result = await svc.bulk_register(self.user, tool_input.get("domains", []))
+            return result
+        elif action == "renew":
+            domains = tool_input.get("domain_names", [])
+            domain_ids = []
+            for name in domains:
+                d = await self._find_domain_by_name(name)
+                if d:
+                    domain_ids.append(str(d.id))
+            result = await svc.bulk_renew(self.user.id, {"domain_ids": domain_ids, "years": tool_input.get("years", 1)})
+            return result
+        elif action in ("lock", "unlock"):
+            domains = tool_input.get("domain_names", [])
+            domain_ids = []
+            for name in domains:
+                d = await self._find_domain_by_name(name)
+                if d:
+                    domain_ids.append(str(d.id))
+            result = await svc.bulk_lock(self.user.id, domain_ids, lock=(action == "lock"))
+            return result
+        return {"error": f"Unknown bulk action: {action}"}
+
+    async def _handle_dnssec(self, tool_input: dict) -> dict:
+        from backend.app.services.dnssec_service import DnssecService
+        svc = DnssecService(self.db)
+        domain = await self._find_domain_by_name(tool_input["domain_name"])
+        if not domain:
+            return {"error": f"Domain '{tool_input['domain_name']}' not found"}
+        action = tool_input["action"]
+        if action == "enable":
+            await svc.enable_dnssec(domain.id, self.user.id, tool_input.get("algorithm", "ECDSAP256SHA256"))
+            return {"enabled": True, "domain": domain.name}
+        elif action == "disable":
+            await svc.disable_dnssec(domain.id, self.user.id)
+            return {"disabled": True, "domain": domain.name}
+        elif action == "get_ds":
+            ds = await svc.get_ds_record(domain.id, self.user.id)
+            return {"ds_record": ds}
+        elif action == "rotate_keys":
+            await svc.rotate_keys(domain.id, self.user.id)
+            return {"rotated": True, "domain": domain.name}
+        return {"error": f"Unknown DNSSEC action: {action}"}
 
 
 def _domain_to_dict(domain: Domain) -> dict:

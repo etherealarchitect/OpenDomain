@@ -5,7 +5,22 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.app.api.routes import agent, auth, contacts, dns, domains
+from backend.app.api.routes import (
+    agent,
+    api_keys,
+    auth,
+    billing,
+    bulk,
+    contacts,
+    dns,
+    domains,
+    email_forwards,
+    marketplace,
+    monitoring,
+    ssl,
+    webhooks,
+    whois,
+)
 from backend.app.core.config import settings
 from backend.app.core.database import engine
 
@@ -51,6 +66,15 @@ app.include_router(domains.router, prefix="/api/v1")
 app.include_router(dns.router, prefix="/api/v1")
 app.include_router(contacts.router, prefix="/api/v1")
 app.include_router(agent.router, prefix="/api/v1")
+app.include_router(whois.router, prefix="/api/v1")
+app.include_router(monitoring.router, prefix="/api/v1")
+app.include_router(webhooks.router, prefix="/api/v1")
+app.include_router(marketplace.router, prefix="/api/v1")
+app.include_router(email_forwards.router, prefix="/api/v1")
+app.include_router(ssl.router, prefix="/api/v1")
+app.include_router(bulk.router, prefix="/api/v1")
+app.include_router(billing.router, prefix="/api/v1")
+app.include_router(api_keys.router, prefix="/api/v1")
 
 
 @app.get("/api/health")

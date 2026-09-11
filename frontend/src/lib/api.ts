@@ -237,6 +237,89 @@ class ApiClient {
   getDnsTemplates(domainId: string) {
     return this.get<DnsTemplate[]>(`/domains/${domainId}/dns/templates`);
   }
+
+  // WHOIS
+  whoisLookup(domain: string) {
+    return this.post<WhoisResult>("/whois/", { domain_name: domain });
+  }
+
+  // Monitoring
+  listDomainWatches() { return this.get<DomainWatchResponse[]>("/monitoring/watches"); }
+  createDomainWatch(query: string, notifyEmail?: string) {
+    return this.post<DomainWatchResponse>("/monitoring/watches", { query, notify_email: notifyEmail });
+  }
+  deleteDomainWatch(id: string) { return this.delete(`/monitoring/watches/${id}`); }
+  listUptimeChecks() { return this.get<UptimeCheckResponse[]>("/monitoring/uptime"); }
+  createUptimeCheck(domainId: string, url: string) {
+    return this.post<UptimeCheckResponse>("/monitoring/uptime", { domain_id: domainId, url });
+  }
+  deleteUptimeCheck(id: string) { return this.delete(`/monitoring/uptime/${id}`); }
+  getSslMonitor(domainId: string) { return this.get<SslMonitorResponse>(`/monitoring/domains/${domainId}/ssl`); }
+  listAlertRules() { return this.get<AlertRuleResponse[]>("/monitoring/alerts/rules"); }
+  createAlertRule(data: { domain_id?: string; alert_type: string; threshold_days?: number; webhook_url?: string; email?: string }) {
+    return this.post<AlertRuleResponse>("/monitoring/alerts/rules", data);
+  }
+  listAlerts(limit = 50) { return this.get<AlertResponse[]>(`/monitoring/alerts?limit=${limit}`); }
+  acknowledgeAlert(id: string) { return this.post(`/monitoring/alerts/${id}/acknowledge`); }
+
+  // Webhooks
+  listWebhooks() { return this.get<WebhookResponse[]>("/webhooks/"); }
+  createWebhook(url: string, events: string[]) {
+    return this.post<WebhookResponse>("/webhooks/", { url, events });
+  }
+  deleteWebhook(id: string) { return this.delete(`/webhooks/${id}`); }
+  listWebhookDeliveries(webhookId: string) {
+    return this.get<WebhookDeliveryResponse[]>(`/webhooks/${webhookId}/deliveries`);
+  }
+
+  // Marketplace
+  listMarketplaceListings(page = 1) {
+    return this.get<MarketplaceListingResponse[]>(`/marketplace/listings?page=${page}`);
+  }
+  getMarketplaceListing(id: string) { return this.get<MarketplaceListingResponse>(`/marketplace/listings/${id}`); }
+  createListing(domainId: string, askingPriceCents: number, description?: string) {
+    return this.post<MarketplaceListingResponse>("/marketplace/listings", { domain_id: domainId, asking_price_cents: askingPriceCents, description });
+  }
+  withdrawListing(id: string) { return this.delete(`/marketplace/listings/${id}`); }
+  createOffer(listingId: string, amountCents: number, message?: string) {
+    return this.post<OfferResponse>(`/marketplace/listings/${listingId}/offers`, { listing_id: listingId, amount_cents: amountCents, message });
+  }
+  listMyOffers() { return this.get<OfferResponse[]>("/marketplace/offers/mine"); }
+
+  // Email Forwarding
+  listEmailForwards(domainId: string) { return this.get<EmailForwardResponse[]>(`/domains/${domainId}/email/`); }
+  createEmailForward(domainId: string, source: string, destination: string) {
+    return this.post<EmailForwardResponse>(`/domains/${domainId}/email/`, { domain_id: domainId, source_address: source, destination_email: destination });
+  }
+  deleteEmailForward(domainId: string, forwardId: string) { return this.delete(`/domains/${domainId}/email/${forwardId}`); }
+
+  // SSL Certificates
+  listCertificates() { return this.get<SslCertificateResponse[]>("/ssl/certificates"); }
+  requestCertificate(domainId: string, domainNames?: string[]) {
+    return this.post<SslCertificateResponse>("/ssl/certificates", { domain_id: domainId, domain_names: domainNames });
+  }
+  revokeCertificate(id: string) { return this.post(`/ssl/certificates/${id}/revoke`); }
+
+  // Billing
+  listInvoices() { return this.get<InvoiceResponse[]>("/billing/invoices"); }
+  getInvoice(id: string) { return this.get<InvoiceResponse>(`/billing/invoices/${id}`); }
+  listTransactions() { return this.get<TransactionResponse[]>("/billing/transactions"); }
+  listPaymentMethods() { return this.get<PaymentMethodResponse[]>("/billing/payment-methods"); }
+
+  // API Keys
+  listApiKeys() { return this.get<ApiKeyResponse[]>("/api-keys/"); }
+  createApiKey(name: string, scopes?: string[]) {
+    return this.post<ApiKeyCreatedResponse>("/api-keys/", { name, scopes });
+  }
+  revokeApiKey(id: string) { return this.delete(`/api-keys/${id}`); }
+
+  // Bulk
+  bulkRegister(domains: { domain: string; period_years?: number; contact_id: string }[]) {
+    return this.post<BulkActionResponse>("/bulk/register", { domains });
+  }
+  bulkRenew(domainIds: string[], years = 1) {
+    return this.post<BulkActionResponse>("/bulk/renew", { domain_ids: domainIds, years });
+  }
 }
 
 export const api = new ApiClient();
@@ -396,3 +479,22 @@ export interface DnsTemplate {
   record_count: number;
   params: string[];
 }
+
+export interface WhoisResult { domain_name: string; registrar: string | null; creation_date: string | null; expiration_date: string | null; nameservers: string[]; status: string[]; }
+export interface DomainWatchResponse { id: string; domain_name: string; is_available: boolean; last_checked: string | null; active: boolean; created_at: string; }
+export interface UptimeCheckResponse { id: string; domain_id: string; url: string; status: string; last_checked: string | null; response_time_ms: number | null; active: boolean; created_at: string; }
+export interface SslMonitorResponse { id: string; domain_id: string; issuer: string | null; valid_from: string | null; valid_until: string | null; last_checked: string | null; auto_renew: boolean; created_at: string; }
+export interface AlertRuleResponse { id: string; alert_type: string; domain_id: string | null; threshold_days: number | null; webhook_url: string | null; email: string | null; active: boolean; created_at: string; }
+export interface AlertResponse { id: string; alert_type: string; status: string; title: string; message: string; domain_id: string | null; created_at: string; acknowledged_at: string | null; }
+export interface WebhookResponse { id: string; url: string; events: string; active: boolean; last_triggered: string | null; failure_count: number; created_at: string; }
+export interface WebhookDeliveryResponse { id: string; webhook_id: string; event_type: string; response_status: number | null; success: boolean; attempted_at: string; }
+export interface MarketplaceListingResponse { id: string; domain_id: string; seller_id: string; asking_price_cents: number; currency: string; description: string | null; status: string; views: number; created_at: string; domain_name?: string; }
+export interface OfferResponse { id: string; listing_id: string; buyer_id: string; amount_cents: number; currency: string; message: string | null; status: string; created_at: string; }
+export interface EmailForwardResponse { id: string; domain_id: string; source_address: string; destination_email: string; active: boolean; created_at: string; }
+export interface SslCertificateResponse { id: string; domain_id: string; provider: string; status: string; domain_names: string; issued_at: string | null; expires_at: string | null; auto_renew: boolean; created_at: string; }
+export interface InvoiceResponse { id: string; invoice_number: string; status: string; total_cents: number; currency: string; due_date: string | null; paid_at: string | null; created_at: string; }
+export interface TransactionResponse { id: string; transaction_type: string; amount_cents: number; currency: string; description: string; created_at: string; }
+export interface PaymentMethodResponse { id: string; method_type: string; label: string; last_four: string | null; is_default: boolean; created_at: string; }
+export interface ApiKeyResponse { id: string; name: string; prefix: string; scopes: string | null; last_used: string | null; expires_at: string | null; active: boolean; created_at: string; }
+export interface ApiKeyCreatedResponse extends ApiKeyResponse { key: string; }
+export interface BulkActionResponse { total: number; succeeded: number; failed: number; results: { item: string; success: boolean; error?: string }[]; }

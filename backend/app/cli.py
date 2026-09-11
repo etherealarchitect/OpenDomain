@@ -303,6 +303,150 @@ class OpenDomainCLI:
         if result.get("actions_taken"):
             print(f"\n  Actions: {len(result['actions_taken'])} tool(s) executed")
 
+    # Monitoring
+    def monitoring_alerts(self, args):
+        result = self._request("GET", "/monitoring/alerts")
+        if not result:
+            print("No alerts.")
+            return
+        for a in result:
+            status = "!" if a["status"] == "pending" else "."
+            print(f"  [{status}] {a['alert_type']}: {a['title']} ({a['created_at'][:10]})")
+
+    def monitoring_alerts_ack(self, args):
+        self._request("POST", f"/monitoring/alerts/{args.alert_id}/acknowledge")
+        print("Alert acknowledged.")
+
+    def monitoring_watches_list(self, args):
+        result = self._request("GET", "/monitoring/watches")
+        if not result:
+            print("No domain watches.")
+            return
+        for w in result:
+            status = "AVAILABLE" if w["is_available"] else "taken"
+            print(f"  {w['domain_name']:<30} {status}")
+
+    def monitoring_watches_add(self, args):
+        result = self._request("POST", "/monitoring/watches", {"query": args.domain})
+        print(f"Watching {result['domain_name']}")
+
+    def monitoring_uptime_list(self, args):
+        result = self._request("GET", "/monitoring/uptime")
+        if not result:
+            print("No uptime checks.")
+            return
+        for c in result:
+            rt = f"{c['response_time_ms']}ms" if c.get("response_time_ms") else "-"
+            print(f"  {c['url']:<40} {c['status']:<8} {rt}")
+
+    def monitoring_uptime_add(self, args):
+        domains = self._request("GET", "/domains/")
+        domain = next((d for d in domains if d["name"] == args.domain.lower()), None)
+        if not domain:
+            print(f"Domain '{args.domain}' not found.")
+            sys.exit(1)
+        result = self._request("POST", "/monitoring/uptime", {"domain_id": domain["id"], "url": args.url})
+        print(f"Uptime check created for {result['url']}")
+
+    # Webhooks
+    def webhooks_list(self, args):
+        result = self._request("GET", "/webhooks/")
+        if not result:
+            print("No webhooks.")
+            return
+        for w in result:
+            print(f"  {w['id'][:8]}  {w['url']:<50} failures={w['failure_count']}")
+
+    def webhooks_create(self, args):
+        result = self._request("POST", "/webhooks/", {"url": args.url, "events": args.events})
+        print(f"Webhook created: {result['id']}")
+
+    def webhooks_delete(self, args):
+        self._request("DELETE", f"/webhooks/{args.id}")
+        print("Webhook deleted.")
+
+    # Marketplace
+    def marketplace_browse(self, args):
+        result = self._request("GET", "/marketplace/listings")
+        if not result:
+            print("No listings.")
+            return
+        for l in result:
+            name = l.get("domain_name", l["domain_id"][:8])
+            print(f"  {name:<30} ${l['asking_price_cents'] / 100:.2f}  [{l['status']}]")
+
+    def marketplace_create(self, args):
+        domains = self._request("GET", "/domains/")
+        domain = next((d for d in domains if d["name"] == args.domain.lower()), None)
+        if not domain:
+            print(f"Domain '{args.domain}' not found.")
+            sys.exit(1)
+        result = self._request("POST", "/marketplace/listings", {
+            "domain_id": domain["id"], "asking_price_cents": args.price,
+        })
+        print(f"Listed {args.domain} for ${args.price / 100:.2f}")
+
+    # SSL
+    def ssl_list(self, args):
+        result = self._request("GET", "/ssl/certificates")
+        if not result:
+            print("No certificates.")
+            return
+        for c in result:
+            print(f"  {c['domain_names']:<30} {c['status']:<12} expires={c.get('expires_at', '-')}")
+
+    def ssl_request(self, args):
+        domains = self._request("GET", "/domains/")
+        domain = next((d for d in domains if d["name"] == args.domain.lower()), None)
+        if not domain:
+            print(f"Domain '{args.domain}' not found.")
+            sys.exit(1)
+        result = self._request("POST", "/ssl/certificates", {"domain_id": domain["id"]})
+        print(f"Certificate requested: {result['status']}")
+
+    # Billing
+    def billing_invoices(self, args):
+        result = self._request("GET", "/billing/invoices")
+        if not result:
+            print("No invoices.")
+            return
+        for i in result:
+            print(f"  {i['invoice_number']:<15} {i['status']:<10} ${i['total_cents'] / 100:.2f}  {i['created_at'][:10]}")
+
+    def billing_transactions(self, args):
+        result = self._request("GET", "/billing/transactions")
+        if not result:
+            print("No transactions.")
+            return
+        for t in result:
+            print(f"  {t['transaction_type']:<15} ${t['amount_cents'] / 100:.2f}  {t['description']}")
+
+    # API Keys
+    def api_keys_list(self, args):
+        result = self._request("GET", "/api-keys/")
+        if not result:
+            print("No API keys.")
+            return
+        for k in result:
+            print(f"  {k['prefix']}...  {k['name']:<20} {'active' if k['active'] else 'revoked'}")
+
+    def api_keys_create(self, args):
+        result = self._request("POST", "/api-keys/", {"name": args.name})
+        print(f"API Key created: {result['key']}")
+        print("  Save this key now — it won't be shown again.")
+
+    def api_keys_revoke(self, args):
+        self._request("DELETE", f"/api-keys/{args.id}")
+        print("API key revoked.")
+
+    # Bulk
+    def bulk_renew(self, args):
+        domains_list = self._request("GET", "/domains/")
+        names = [n.strip().lower() for n in args.domains.split(",")]
+        ids = [d["id"] for d in domains_list if d["name"] in names]
+        result = self._request("POST", "/bulk/renew", {"domain_ids": ids, "years": args.years})
+        print(f"Bulk renew: {result['succeeded']}/{result['total']} succeeded")
+
 
 def main():
     parser = argparse.ArgumentParser(prog="opendomain", description="OpenDomain CLI")
@@ -382,6 +526,67 @@ def main():
     agent_p = sub.add_parser("agent", help="Chat with AI agent")
     agent_p.add_argument("message", nargs="+")
 
+    # Monitoring
+    mon_p = sub.add_parser("monitoring", help="Monitoring & alerts")
+    mon_sub = mon_p.add_subparsers(dest="subcommand")
+    mon_sub.add_parser("alerts", help="List alerts")
+    mon_ack = mon_sub.add_parser("ack", help="Acknowledge alert")
+    mon_ack.add_argument("alert_id")
+    mon_sub.add_parser("watches", help="List domain watches")
+    mon_wa = mon_sub.add_parser("watch", help="Add domain watch")
+    mon_wa.add_argument("domain")
+    mon_sub.add_parser("uptime", help="List uptime checks")
+    mon_ua = mon_sub.add_parser("uptime-add", help="Add uptime check")
+    mon_ua.add_argument("domain")
+    mon_ua.add_argument("url")
+
+    # Webhooks
+    wh_p = sub.add_parser("webhooks", help="Webhook management")
+    wh_sub = wh_p.add_subparsers(dest="subcommand")
+    wh_sub.add_parser("list", help="List webhooks")
+    wh_create = wh_sub.add_parser("create", help="Create webhook")
+    wh_create.add_argument("url")
+    wh_create.add_argument("--events", nargs="+", required=True)
+    wh_del = wh_sub.add_parser("delete", help="Delete webhook")
+    wh_del.add_argument("id")
+
+    # Marketplace
+    mp_p = sub.add_parser("marketplace", help="Domain marketplace")
+    mp_sub = mp_p.add_subparsers(dest="subcommand")
+    mp_sub.add_parser("browse", help="Browse listings")
+    mp_create = mp_sub.add_parser("create", help="List domain for sale")
+    mp_create.add_argument("domain")
+    mp_create.add_argument("--price", type=int, required=True, help="Price in cents")
+
+    # SSL
+    ssl_p = sub.add_parser("ssl", help="SSL certificate management")
+    ssl_sub = ssl_p.add_subparsers(dest="subcommand")
+    ssl_sub.add_parser("list", help="List certificates")
+    ssl_req = ssl_sub.add_parser("request", help="Request certificate")
+    ssl_req.add_argument("domain")
+
+    # Billing
+    bill_p = sub.add_parser("billing", help="Billing & invoices")
+    bill_sub = bill_p.add_subparsers(dest="subcommand")
+    bill_sub.add_parser("invoices", help="List invoices")
+    bill_sub.add_parser("transactions", help="List transactions")
+
+    # API Keys
+    ak_p = sub.add_parser("api-keys", help="API key management")
+    ak_sub = ak_p.add_subparsers(dest="subcommand")
+    ak_sub.add_parser("list", help="List API keys")
+    ak_create = ak_sub.add_parser("create", help="Create API key")
+    ak_create.add_argument("name")
+    ak_rev = ak_sub.add_parser("revoke", help="Revoke API key")
+    ak_rev.add_argument("id")
+
+    # Bulk
+    bulk_p = sub.add_parser("bulk", help="Bulk operations")
+    bulk_sub = bulk_p.add_subparsers(dest="subcommand")
+    bulk_renew_p = bulk_sub.add_parser("renew", help="Bulk renew domains")
+    bulk_renew_p.add_argument("--domains", required=True, help="Comma-separated domain names")
+    bulk_renew_p.add_argument("--years", type=int, default=1)
+
     args = parser.parse_args()
     cli = OpenDomainCLI(api_url=args.api)
 
@@ -416,6 +621,46 @@ def main():
         case "whois": cli.whois(args)
         case "transfer": cli.transfer(args)
         case "agent": cli.agent_chat(args)
+        case "monitoring":
+            match args.subcommand:
+                case "alerts": cli.monitoring_alerts(args)
+                case "ack": cli.monitoring_alerts_ack(args)
+                case "watches": cli.monitoring_watches_list(args)
+                case "watch": cli.monitoring_watches_add(args)
+                case "uptime": cli.monitoring_uptime_list(args)
+                case "uptime-add": cli.monitoring_uptime_add(args)
+                case _: mon_p.print_help()
+        case "webhooks":
+            match args.subcommand:
+                case "list": cli.webhooks_list(args)
+                case "create": cli.webhooks_create(args)
+                case "delete": cli.webhooks_delete(args)
+                case _: wh_p.print_help()
+        case "marketplace":
+            match args.subcommand:
+                case "browse": cli.marketplace_browse(args)
+                case "create": cli.marketplace_create(args)
+                case _: mp_p.print_help()
+        case "ssl":
+            match args.subcommand:
+                case "list": cli.ssl_list(args)
+                case "request": cli.ssl_request(args)
+                case _: ssl_p.print_help()
+        case "billing":
+            match args.subcommand:
+                case "invoices": cli.billing_invoices(args)
+                case "transactions": cli.billing_transactions(args)
+                case _: bill_p.print_help()
+        case "api-keys":
+            match args.subcommand:
+                case "list": cli.api_keys_list(args)
+                case "create": cli.api_keys_create(args)
+                case "revoke": cli.api_keys_revoke(args)
+                case _: ak_p.print_help()
+        case "bulk":
+            match args.subcommand:
+                case "renew": cli.bulk_renew(args)
+                case _: bulk_p.print_help()
         case _: parser.print_help()
 
 
