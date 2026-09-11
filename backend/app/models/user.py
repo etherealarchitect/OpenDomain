@@ -2,11 +2,10 @@ import enum
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, String, Text
+from backend.app.core.database import Base
+from sqlalchemy import Boolean, DateTime, Enum, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from backend.app.core.database import Base
 
 
 class UserRole(enum.StrEnum):
@@ -29,11 +28,24 @@ class User(Base):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     two_factor_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     two_factor_secret: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    last_totp_counter: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     domains = relationship("Domain", back_populates="owner", lazy="selectin")
     contacts = relationship("Contact", back_populates="user", lazy="selectin")
     invoices = relationship("Invoice", back_populates="user", lazy="selectin")
+
+    @property
+    def onboarding_state(self) -> str:
+        if not self.is_verified:
+            return "email_verification_required"
+        if not self.two_factor_enabled:
+            return "mfa_enrollment_required"
+        return "complete"

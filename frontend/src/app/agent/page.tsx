@@ -111,7 +111,7 @@ export default function AgentPage() {
                       <div className="mt-2 border-t border-edge pt-2">
                         {msg.actions.map((a, j) => (
                           <p key={j} className="font-mono text-xs text-ink-faint">
-                            {a.success ? "+" : "x"} {a.tool}
+                            {String(a.success) === "true" ? "+" : "x"} {String(a.tool)}
                           </p>
                         ))}
                       </div>

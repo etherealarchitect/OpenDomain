@@ -75,8 +75,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="mt-auto border-t border-edge pt-3">
           <p className="truncate px-2 text-xs text-ink-dim">{user.email}</p>
           <button
-            onClick={() => {
-              logout();
+            onClick={async () => {
+              await logout();
               router.push("/login");
             }}
             className="mt-1 w-full rounded-md px-2 py-1.5 text-left text-xs text-ink-faint hover:text-ink hover:bg-ground-raised/50 transition-colors"

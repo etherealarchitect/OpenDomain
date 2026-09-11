@@ -21,7 +21,7 @@ export default function AccountPage() {
 
   useEffect(() => {
     api
-      .getMe()
+      .getCurrentUser()
       .then((u) => {
         setUser(u);
         setFullName(u.full_name || "");
@@ -36,7 +36,7 @@ export default function AccountPage() {
     e.preventDefault();
     setSavingProfile(true);
     try {
-      const updated = await api.updateMe({
+      const updated = await api.updateCurrentUser({
         full_name: fullName,
         company: company || undefined,
         phone: phone || undefined,

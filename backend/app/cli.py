@@ -23,12 +23,10 @@ Usage:
 """
 
 import argparse
-import json
 import sys
 from getpass import getpass
 
 import httpx
-
 
 DEFAULT_API = "http://localhost:8000/api/v1"
 
@@ -54,7 +52,7 @@ class OpenDomainCLI:
     def _headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}
         if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
+            headers["Cookie"] = f"opendomain_session={self.token}"
         return headers
 
     def _request(self, method: str, path: str, data: dict | None = None) -> dict:
@@ -75,8 +73,27 @@ class OpenDomainCLI:
     def login(self, args):
         email = input("Email: ")
         password = getpass("Password: ")
-        result = self._request("POST", "/auth/login", {"email": email, "password": password})
-        self._save_token(result["access_token"])
+        challenge = self._request("POST", "/auth/login", {"email": email, "password": password})
+        if challenge["next_step"] == "mfa_enrollment":
+            print("Authenticator enrollment is required. Complete setup in the web app first.")
+            return
+        code = getpass("Authenticator or recovery code: ")
+        url = f"{self.api_url}/auth/mfa/verify"
+        with httpx.Client(timeout=30) as client:
+            response = client.post(
+                url,
+                json={"challenge_id": challenge["challenge_id"], "code": code},
+                headers={"Content-Type": "application/json"},
+            )
+        if response.status_code >= 400:
+            detail = response.json().get("detail", response.text)
+            print(f"Error ({response.status_code}): {detail}")
+            return
+        session_cookie = response.cookies.get("opendomain_session")
+        if not session_cookie:
+            print("Error: Server did not establish a secure session.")
+            return
+        self._save_token(session_cookie)
         print("Logged in successfully.")
 
     def register_account(self, args):
@@ -90,7 +107,7 @@ class OpenDomainCLI:
         self._request("POST", "/auth/register", {
             "email": email, "password": password, "full_name": full_name,
         })
-        print("Account created. You can now login.")
+        print("Check your email, verify the account, and complete authenticator setup in the web app.")
 
     def domains_search(self, args):
         result = self._request("POST", "/domains/search", {"query": args.query, "tlds": args.tlds})

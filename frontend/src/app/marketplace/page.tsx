@@ -29,7 +29,7 @@ export default function MarketplacePage() {
 
   useEffect(() => {
     Promise.all([
-      api.listMarketplaceListings().catch(() => []),
+      api.browseListings().catch(() => []),
       api.listDomains().catch(() => []),
     ]).then(([l, d]) => {
       setListings(l);
@@ -43,11 +43,11 @@ export default function MarketplacePage() {
     if (!selectedDomain || !price) return;
     setCreating(true);
     try {
-      const listing = await api.createListing(
-        selectedDomain,
-        Math.round(parseFloat(price) * 100),
-        description || undefined,
-      );
+      const listing = await api.createListing({
+        domain_id: selectedDomain,
+        asking_price_cents: Math.round(parseFloat(price) * 100),
+        description: description || undefined,
+      });
       setListings((prev) => [listing, ...prev]);
       setShowCreate(false);
       setSelectedDomain("");

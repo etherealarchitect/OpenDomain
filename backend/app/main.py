@@ -1,10 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-
 from backend.app.api.routes import (
     agent,
     api_keys,
@@ -23,12 +19,16 @@ from backend.app.api.routes import (
 )
 from backend.app.core.config import settings
 from backend.app.core.database import engine
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    settings.validate_production()
     yield
     await engine.dispose()
 
@@ -40,7 +40,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-cors_origins = ["*"] if settings.debug else settings.cors_origins
+cors_origins = settings.cors_origins
+if settings.debug and "*" in cors_origins:
+    raise RuntimeError("CORS wildcard cannot be used with credentialed requests")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
