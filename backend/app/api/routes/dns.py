@@ -1,0 +1,82 @@
+import uuid
+
+from fastapi import APIRouter, HTTPException, status
+
+from backend.app.api.deps import CurrentUser, DbSession
+from backend.app.schemas.dns import (
+    BulkDnsRecordCreate,
+    DnsRecordCreate,
+    DnsRecordResponse,
+    DnsRecordUpdate,
+    DnsTemplateApply,
+    DnsZoneExport,
+    DnsZoneResponse,
+)
+from backend.app.services.dns_service import DnsService
+
+router = APIRouter(prefix="/domains/{domain_id}/dns", tags=["dns"])
+
+
+@router.get("/", response_model=DnsZoneResponse)
+async def get_zone(domain_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
+    service = DnsService(db)
+    zone = await service.get_zone(domain_id, current_user.id)
+    if not zone:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DNS zone not found")
+    return zone
+
+
+@router.post("/records", response_model=DnsRecordResponse, status_code=status.HTTP_201_CREATED)
+async def create_record(
+    domain_id: uuid.UUID, data: DnsRecordCreate, db: DbSession, current_user: CurrentUser
+):
+    service = DnsService(db)
+    return await service.create_record(domain_id, data, current_user.id)
+
+
+@router.post("/records/bulk", response_model=list[DnsRecordResponse], status_code=status.HTTP_201_CREATED)
+async def create_records_bulk(
+    domain_id: uuid.UUID, data: BulkDnsRecordCreate, db: DbSession, current_user: CurrentUser
+):
+    service = DnsService(db)
+    return await service.create_records_bulk(domain_id, data.records, current_user.id)
+
+
+@router.patch("/records/{record_id}", response_model=DnsRecordResponse)
+async def update_record(
+    domain_id: uuid.UUID,
+    record_id: uuid.UUID,
+    data: DnsRecordUpdate,
+    db: DbSession,
+    current_user: CurrentUser,
+):
+    service = DnsService(db)
+    return await service.update_record(domain_id, record_id, data, current_user.id)
+
+
+@router.delete("/records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_record(
+    domain_id: uuid.UUID, record_id: uuid.UUID, db: DbSession, current_user: CurrentUser
+):
+    service = DnsService(db)
+    await service.delete_record(domain_id, record_id, current_user.id)
+
+
+@router.get("/export", response_model=DnsZoneExport)
+async def export_zone(domain_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
+    service = DnsService(db)
+    return await service.export_zone_file(domain_id, current_user.id)
+
+
+@router.post("/import", response_model=DnsZoneResponse)
+async def import_zone(domain_id: uuid.UUID, zone_file: str, db: DbSession, current_user: CurrentUser):
+    service = DnsService(db)
+    return await service.import_zone_file(domain_id, zone_file, current_user.id)
+
+
+@router.post("/templates", response_model=DnsZoneResponse)
+async def apply_template(
+    domain_id: uuid.UUID, data: DnsTemplateApply, db: DbSession, current_user: CurrentUser
+):
+    service = DnsService(db)
+    return await service.apply_template(domain_id, data.template, data.params, current_user.id)

@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Inter";
+  src: url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap");
+}
+
+@theme {
+  --color-ink: #e4e4e7;
+  --color-ink-dim: #a1a1aa;
+  --color-ink-faint: #52525b;
+  --color-ground: #0c0c0e;
+  --color-ground-raised: #141416;
+  --color-ground-overlay: #1c1c20;
+  --color-edge: #2a2a2e;
+  --color-focus: #6d8aff;
+  --color-focus-dim: #6d8aff33;
+  --color-live: #34d399;
+  --color-live-dim: #34d39933;
+  --color-caution: #fbbf24;
+  --color-fault: #f87171;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+::selection {
+  background: var(--color-focus-dim);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
