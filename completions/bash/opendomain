@@ -1,0 +1,45 @@
+_opendomain_completion() {
+    local cur prev words cword
+    _init_completion || return
+
+    if [[ $cword -eq 1 ]]; then
+        COMPREPLY=($(compgen -W "login logout domains dns contacts whois agent transfer marketplace monitoring billing version --help --version --api --debug" -- "$cur"))
+    elif [[ $cword -eq 2 ]]; then
+        case "${words[1]}" in
+            domains)
+                COMPREPLY=($(compgen -W "search list register info renew lock unlock delete transfer auth-codes" -- "$cur"))
+                ;;
+            dns)
+                COMPREPLY=($(compgen -W "list add delete export template import zones records" -- "$cur"))
+                ;;
+            contacts)
+                COMPREPLY=($(compgen -W "list create update delete" -- "$cur"))
+                ;;
+            marketplace)
+                COMPREPLY=($(compgen -W "listings offers create withdraw accept reject" -- "$cur"))
+                ;;
+            monitoring)
+                COMPREPLY=($(compgen -W "watches uptime ssl alerts" -- "$cur"))
+                ;;
+            billing)
+                COMPREPLY=($(compgen -W "invoices payment-methods subscriptions" -- "$cur"))
+                ;;
+            login)
+                COMPREPLY=($(compgen -W "--api --email --password --2fa" -- "$cur"))
+                ;;
+            *)
+                COMPREPLY=()
+                ;;
+        esac
+    elif [[ $cword -eq 3 ]]; then
+        # Add domain completion for relevant commands
+        case "${words[1]}" in
+            domains|dns|whois)
+                # Should complete with user's domains - for now empty
+                COMPREPLY=()
+                ;;
+        esac
+    fi
+}
+
+complete -F _opendomain_completion opendomain

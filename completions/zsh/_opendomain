@@ -1,0 +1,97 @@
+#compdef opendomain
+
+_opendomain() {
+    local -a commands
+    local -a args
+
+    commands=(
+        'login:Authenticate with OpenDomain API'
+        'logout:Clear authentication'
+        'version:Show version information'
+        'domains:Manage domains'
+        'dns:Manage DNS records'
+        'contacts:Manage WHOIS contacts'
+        'whois:WHOIS lookup'
+        'agent:AI agent chat'
+        'transfer:Domain transfer operations'
+        'marketplace:Domain marketplace'
+        'monitoring:Monitoring and alerts'
+        'billing:Billing and payments'
+        'api-keys:API key management'
+    )
+
+    args=(
+        '--api[API base URL]'
+        '--debug[Enable debug output]'
+        '--version[Show version]'
+        '--help[Show help]'
+    )
+
+    _arguments -C \
+        '1: :->first' \
+        '2: :->second' \
+        '*:: :->opts'
+
+    case $state in
+        first)
+            _describe 'command' commands
+            ;;
+        second)
+            case $words[2] in
+                domains)
+                    local -a domains_cmds=(
+                        'search:Search for available domains'
+                        'list:List your domains'
+                        'register:Register a domain'
+                        'info:Get domain details'
+                        'renew:Renew a domain'
+                        'lock:Lock domain transfers'
+                        'unlock:Unlock domain transfers'
+                        'delete:Delete a domain'
+                        'transfer:Transfer a domain'
+                        'auth-codes:Get transfer auth codes'
+                    )
+                    _describe 'domains subcommand' domains_cmds
+                    ;;
+                dns)
+                    local -a dns_cmds=(
+                        'list:List DNS records'
+                        'add:Add DNS record'
+                        'delete:Delete DNS record'
+                        'export:Export DNS zone file'
+                        'template:Apply DNS template'
+                        'import:Import DNS zone'
+                        'zones:Manage DNS zones'
+                        'records:Manage DNS records'
+                    )
+                    _describe 'dns subcommand' dns_cmds
+                    ;;
+                contacts)
+                    local -a contacts_cmds=(
+                        'list:List contacts'
+                        'create:Create contact'
+                        'update:Update contact'
+                        'delete:Delete contact'
+                    )
+                    _describe 'contacts subcommand' contacts_cmds
+                    ;;
+                login)
+                    local -a login_opts=(
+                        '--email[Email address]'
+                        '--password[Password]'
+                        '--2fa[2FA code]'
+                    )
+                    _arguments "${login_opts[@]}" "${args[@]}"
+                    ;;
+                *)
+                    _arguments "${args[@]}"
+                    ;;
+            esac
+            ;;
+        opts)
+            _arguments "${args[@]}"
+            ;;
+    esac
+}
+
+_opendomain "$@"
