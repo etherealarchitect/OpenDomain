@@ -1,162 +1,207 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Shell } from "@/components/layout/shell";
-import { api, type AgentResponse } from "@/lib/api";
+import { useState } from "react";
+import { Bot, Send, Clock, Sparkles, Brain, Zap } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-  actions?: AgentResponse["actions_taken"];
-}
+const mockMessages = [
+  {
+    id: 1,
+    role: "assistant",
+    content: "Welcome to the OpenDomain AI Agent. I can help you search for domains, manage DNS, check WHOIS, set up monitoring, and handle transfers. What would you like to do today?",
+    timestamp: "2 minutes ago",
+  },
+  {
+    id: 2,
+    role: "user",
+    content: "Register opendomain.dev for 2 years with privacy protection",
+    timestamp: "1 minute ago",
+  },
+  {
+    id: 3,
+    role: "assistant",
+    content: "Great! I'll help you register opendomain.dev for 2 years with WHOIS privacy protection enabled. Let me check availability first... ✅ Domain is available. Price: $39.98/year ($79.96 total with privacy included). Should I proceed?",
+    timestamp: "Just now",
+  },
+];
+
+const quickActions = [
+  { label: "Search Domains", description: "Find available domains" },
+  { label: "WHOIS Lookup", description: "Check domain details" },
+  { label: "DNS Configuration", description: "Set up records" },
+  { label: "Transfer Domain", description: "Bring existing domains" },
+  { label: "Renew Domain", description: "Extend registration" },
+  { label: "Marketplace Search", description: "Find premium domains" },
+];
 
 export default function AgentPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [conversationId, setConversationId] = useState<string | undefined>();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [messages, setMessages] = useState(mockMessages);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  const handleSend = () => {
+    if (!input.trim()) return;
 
-  async function send() {
-    const text = input.trim();
-    if (!text || loading) return;
+    const newMessage = {
+      id: messages.length + 1,
+      role: "user",
+      content: input,
+      timestamp: "Just now",
+    };
 
+    setMessages([...messages, newMessage]);
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
-    setLoading(true);
 
-    try {
-      const res = await api.agentChat(text, conversationId);
-      setConversationId(res.conversation_id);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: res.response, actions: res.actions_taken },
-      ]);
-    } catch (e) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `Something went wrong: ${e instanceof Error ? e.message : "unknown error"}`,
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  }
+    // Simulate AI response after delay
+    setTimeout(() => {
+      const aiResponse = {
+        id: messages.length + 2,
+        role: "assistant",
+        content: "I received your message: \"" + input + "\". I'm processing that now...",
+        timestamp: "Just now",
+      };
+      setMessages(prev => [...prev, aiResponse]);
+    }, 1000);
+  };
+
+  const handleQuickAction = (action: string) => {
+    const actionText = `Help me with ${action.toLowerCase()}`;
+    setInput(actionText);
+  };
 
   return (
-    <Shell>
-      <div className="flex h-[calc(100vh-2rem)] flex-col">
-        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6">
-          <div className="flex items-baseline justify-between border-b border-edge py-4">
-            <h1 className="text-sm font-medium text-ink">Agent</h1>
-            <button
-              onClick={() => {
-                setMessages([]);
-                setConversationId(undefined);
-              }}
-              className="text-xs text-ink-faint hover:text-ink transition-colors"
-            >
-              New conversation
-            </button>
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-gradient-to-br from-primary-600 to-primary-800 p-2">
+            <Bot className="h-6 w-6 text-white" />
           </div>
-
-          <div className="flex-1 overflow-y-auto py-6">
-            {messages.length === 0 && (
-              <div className="flex h-full items-center justify-center">
-                <div className="text-center">
-                  <p className="text-sm text-ink-dim">
-                    Describe what you need in plain language.
-                  </p>
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    {[
-                      "Search for myproject.dev",
-                      "List my domains",
-                      "Set up DNS for GitHub Pages",
-                      "Add an MX record for Google Workspace",
-                    ].map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        onClick={() => setInput(suggestion)}
-                        className="rounded-md border border-edge bg-ground-raised px-3 py-1.5 text-xs text-ink-dim hover:text-ink transition-colors"
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              {messages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[80%] rounded-lg px-4 py-3 text-sm ${
-                      msg.role === "user"
-                        ? "bg-focus/10 text-ink"
-                        : "bg-ground-raised text-ink-dim"
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                    {msg.actions && msg.actions.length > 0 && (
-                      <div className="mt-2 border-t border-edge pt-2">
-                        {msg.actions.map((a, j) => (
-                          <p key={j} className="font-mono text-xs text-ink-faint">
-                            {String(a.success) === "true" ? "+" : "x"} {String(a.tool)}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {loading && (
-                <div className="flex justify-start">
-                  <div className="rounded-lg bg-ground-raised px-4 py-3">
-                    <span className="inline-block animate-pulse text-sm text-ink-faint">
-                      Thinking...
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div ref={bottomRef} />
-          </div>
-
-          <div className="border-t border-edge py-4">
-            <div className="flex items-center gap-2 rounded-lg border border-edge bg-ground-raised px-3">
-              <span className="font-mono text-xs text-ink-faint select-none">
-                &gt;
-              </span>
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && send()}
-                placeholder="Ask the agent anything..."
-                disabled={loading}
-                className="flex-1 bg-transparent py-3 text-sm text-ink placeholder:text-ink-faint focus:outline-none disabled:opacity-50"
-              />
-              <button
-                onClick={send}
-                disabled={loading || !input.trim()}
-                className="rounded-md bg-focus px-3 py-1.5 text-xs font-medium text-ground transition-colors hover:bg-focus/90 disabled:opacity-30"
-              >
-                Send
-              </button>
-            </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">AI Agent</h1>
+            <p className="text-text-tertiary mt-1">
+              Natural language control for domain management • 21 pending tasks
+            </p>
           </div>
         </div>
       </div>
-    </Shell>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Chat area */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-4 w-4" />
+              Conversation
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-xl p-4 ${
+                      message.role === "user"
+                        ? "bg-primary-600 text-white"
+                        : "bg-surface-raised border border-surface-border"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      {message.role === "assistant" && (
+                        <Bot className="h-3 w-3" />
+                      )}
+                      <span className="text-xs opacity-70">
+                        {message.role === "user" ? "You" : "AI Agent"} • {message.timestamp}
+                      </span>
+                    </div>
+                    <p>{message.content}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Input */}
+            <div className="mt-6">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Ask the AI agent to do anything domain-related..."
+                  className="w-full rounded-xl border border-surface-border bg-surface-raised py-3 pl-4 pr-12 text-sm placeholder:text-text-tertiary focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                />
+                <button
+                  onClick={handleSend}
+                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-gradient-to-br from-primary-600 to-primary-800 hover:from-primary-700 hover:to-primary-900 transition-colors"
+                >
+                  <Send className="h-4 w-4 text-white" />
+                </button>
+              </div>
+              <div className="mt-3 flex items-center gap-2 text-xs text-text-tertiary">
+                <Sparkles className="h-3 w-3" />
+                <span>Press Enter to send, Shift+Enter for new line</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Side panel */}
+        <div className="space-y-6">
+          {/* Quick actions */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-4 w-4" />
+                Quick Actions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-2">
+                {quickActions.map((action) => (
+                  <button
+                    key={action.label}
+                    onClick={() => handleQuickAction(action.label)}
+                    className="rounded-lg border border-surface-border p-3 text-left hover:border-primary-400/30 hover:bg-surface-raised transition-colors"
+                  >
+                    <div className="font-medium text-sm">{action.label}</div>
+                    <div className="text-xs text-text-tertiary mt-1">{action.description}</div>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recent tasks */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Recent Tasks
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[
+                  { name: "Register opendomain.dev", status: "✅ Completed" },
+                  { name: "WHOIS lookup for cloudapp.io", status: "✅ Completed" },
+                  { name: "Renew example.com", status: "🔄 In progress" },
+                  { name: "Setup monitoring for 5 domains", status: "⏳ Pending" },
+                ].map((task, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{task.name}</div>
+                      <div className="text-xs text-text-tertiary">{task.status}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
   );
 }

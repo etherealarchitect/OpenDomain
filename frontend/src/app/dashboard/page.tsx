@@ -1,160 +1,150 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { Shell } from "@/components/layout/shell";
-import { api, type DomainResponse } from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Globe, Server, Wallet, Eye, MessageSquare, ArrowUpRight } from "lucide-react";
 
-export default function Dashboard() {
-  const [domains, setDomains] = useState<DomainResponse[]>([]);
-  const [loading, setLoading] = useState(true);
+const stats = [
+  { label: "Active Domains", value: "21", change: "+3 this month", icon: Globe },
+  { label: "DNS Zones", value: "8", change: "+2 this month", icon: Server },
+  { label: "Monthly Spend", value: "$149.00", change: "-$12.00 vs last", icon: Wallet },
+  { label: "Uptime", value: "99.8%", change: "+0.2%", icon: Eye },
+];
 
-  useEffect(() => {
-    api
-      .listDomains()
-      .then(setDomains)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+const recentActivity = [
+  { id: 1, action: "Registered opendomain.dev", time: "2 hours ago", user: "Scott" },
+  { id: 2, action: "Updated DNS records for example.com", time: "4 hours ago", user: "AI Agent" },
+  { id: 3, action: "Renewed cloudapp.io for 1 year", time: "1 day ago", user: "Scott" },
+  { id: 4, action: "Transferred web3tools.org inbound", time: "2 days ago", user: "AI Agent" },
+];
 
-  const active = domains.filter((d) => d.status === "active");
-  const expiring = domains.filter((d) => {
-    const days =
-      (new Date(d.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-    return days < 30 && days > 0;
-  });
+const agentSuggestions = [
+  "Register opendomain.dev for 2 years with WHOIS privacy enabled",
+  "Set up email forwarding for all my domains to my main inbox",
+  "Create a DNS template for new SaaS projects with A, MX, TXT records",
+  "Monitor SSL certificate expiration for 5 critical domains",
+  "Find available .ai domains related to 'machine learning'",
+];
 
+export default function DashboardPage() {
   return (
-    <Shell>
-      <div className="mx-auto max-w-4xl px-6 py-10">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">
-          Dashboard
-        </h1>
-
-        <div className="mt-8 grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-edge bg-edge">
-          <Stat label="Domains" value={domains.length} />
-          <Stat label="Active" value={active.length} />
-          <Stat
-            label="Expiring soon"
-            value={expiring.length}
-            alert={expiring.length > 0}
-          />
-        </div>
-
-        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <QuickAction href="/" label="Register domain" />
-          <QuickAction href="/domains/transfer" label="Transfer in" />
-          <QuickAction href="/domains" label="Manage DNS" />
-          <QuickAction href="/agent" label="Ask Agent" />
-        </div>
-
-        <div className="mt-10">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-medium text-ink">Your domains</h2>
-            <Link href="/" className="text-xs text-focus hover:underline">
-              Register new
-            </Link>
-          </div>
-
-          {loading ? (
-            <p className="mt-6 text-sm text-ink-faint">Loading...</p>
-          ) : domains.length === 0 ? (
-            <div className="mt-6 rounded-lg border border-edge bg-ground-raised p-8 text-center">
-              <p className="text-sm text-ink-dim">No domains yet.</p>
-              <Link
-                href="/"
-                className="mt-2 inline-block text-sm text-focus hover:underline"
-              >
-                Search for one
-              </Link>
-            </div>
-          ) : (
-            <div className="mt-4 overflow-hidden rounded-lg border border-edge">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-edge bg-ground-raised text-xs text-ink-faint">
-                    <th className="px-4 py-2 font-medium">Domain</th>
-                    <th className="px-4 py-2 font-medium">Status</th>
-                    <th className="px-4 py-2 font-medium">Expires</th>
-                    <th className="px-4 py-2 font-medium text-right">Auto-renew</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-edge">
-                  {domains.map((d) => (
-                    <tr key={d.id} className="hover:bg-ground-raised/50">
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/domains/${d.id}`}
-                          className="font-mono text-sm text-ink hover:text-focus"
-                        >
-                          {d.name}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={d.status} />
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-ink-dim">
-                        {new Date(d.expiry_date).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3 text-right text-xs text-ink-dim">
-                        {d.auto_renew ? "on" : "off"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+    <div className="space-y-8">
+      {/* Welcome header */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Welcome back, Scott</h1>
+        <p className="text-text-tertiary mt-1">
+          Your domain management dashboard • Last updated 12 minutes ago
+        </p>
       </div>
-    </Shell>
-  );
-}
 
-function Stat({
-  label,
-  value,
-  alert,
-}: {
-  label: string;
-  value: number;
-  alert?: boolean;
-}) {
-  return (
-    <div className="bg-ground-raised px-5 py-4">
-      <p
-        className={`text-2xl font-semibold tabular-nums ${alert ? "text-caution" : "text-ink"}`}
-      >
-        {value}
-      </p>
-      <p className="mt-0.5 text-xs text-ink-dim">{label}</p>
+      {/* Stats grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <Card key={stat.label} className="hover:border-primary-400/30 transition-colors">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-text-tertiary">{stat.label}</p>
+                    <p className="text-2xl font-bold mt-1">{stat.value}</p>
+                    <p className="text-xs text-text-tertiary mt-1">{stat.change}</p>
+                  </div>
+                  <div className="rounded-lg bg-primary-500/10 p-2">
+                    <Icon className="h-5 w-5 text-primary-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Quick actions */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3">
+            <button className="flex items-center justify-between rounded-lg border border-surface-border p-4 text-left hover:border-primary-400/30 hover:bg-surface-raised transition-colors">
+              <div>
+                <div className="font-medium">WHOIS Lookup</div>
+                <div className="text-xs text-text-tertiary mt-1">Check domain availability</div>
+              </div>
+              <ArrowUpRight className="h-4 w-4 text-text-tertiary" />
+            </button>
+            <button className="flex items-center justify-between rounded-lg border border-surface-border p1-4 text-left hover:border-primary-400/30 hover:bg-surface-raised transition-colors">
+              <div>
+                <div className="font-medium">Add Domain</div>
+                <div className="text-xs text-text-tertiary mt-1">Register or transfer</div>
+              </div>
+              <ArrowUpRight className="h-4 w-4 text-text-tertiary" />
+            </button>
+            <button className="flex items-center justify-between rounded-lg border border-surface-border p-4 text-left hover:border-primary-400/30 hover:bg-surface-raised transition-colors">
+              <div>
+                <div className="font-medium">DNS Zone</div>
+                <div className="text-xs text-text-tertiary mt-1">Create new zone</div>
+              </div>
+              <ArrowUpRight className="h-4 w-4 text-text-tertiary" />
+            </button>
+            <button className="flex items-center justify-between rounded-lg border border-surface-border p-4 text-left hover:border-primary-400/30 hover:bg-surface-raised transition-colors">
+              <div>
+                <div className="font-medium">Invoice</div>
+                <div className="text-xs text-text-tertiary mt-1">View recent bills</div>
+              </div>
+              <ArrowUpRight className="h-4 w-4 text-text-tertiary" />
+            </button>
+          </CardContent>
+        </Card>
+
+        {/* AI Agent suggestions */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              AI Agent Suggestions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {agentSuggestions.map((suggestion, index) => (
+                <div
+                  key={index}
+                  className="rounded-lg border border-surface-border p-3 hover:border-primary-400/30 hover:bg-surface-raised transition-colors cursor-pointer"
+                >
+                  <div className="text-sm">{suggestion}</div>
+                  <div className="text-xs text-primary-400 mt-2 font-medium">Ask Agent →</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent activity */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {recentActivity.map((activity) => (
+              <div key={activity.id} className="flex items-center justify-between border-b border-surface-border pb-4 last:border-0 last:pb-0">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-full bg-primary-500/10 flex items-center justify-center">
+                    <div className="h-2 w-2 rounded-full bg-primary-400" />
+                  </div>
+                  <div>
+                    <div className="font-medium">{activity.action}</div>
+                    <div className="text-xs text-text-tertiary">by {activity.user}</div>
+                  </div>
+                </div>
+                <div className="text-sm text-text-tertiary">{activity.time}</div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
-  );
-}
-
-function QuickAction({ href, label }: { href: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="rounded-lg border border-edge bg-ground-raised px-4 py-3 text-center text-sm text-ink-dim transition-colors hover:text-ink hover:bg-ground-overlay"
-    >
-      {label}
-    </Link>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    active: "text-live bg-live-dim",
-    expired: "text-fault bg-fault/10",
-    pendingTransfer: "text-caution bg-caution/10",
-    pendingCreate: "text-focus bg-focus-dim",
-  };
-  return (
-    <span
-      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${colors[status] || "text-ink-faint bg-ground-overlay"}`}
-    >
-      {status}
-    </span>
   );
 }

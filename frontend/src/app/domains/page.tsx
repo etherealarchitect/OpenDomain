@@ -1,276 +1,301 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { Shell } from "@/components/layout/shell";
-import { api, type DomainResponse } from "@/lib/api";
-import { toast } from "@/components/ui/toast";
+import { useState } from "react";
+import { Globe, Calendar, Lock, ArrowUpRight, Plus, Search, Filter } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type StatusFilter = "all" | "active" | "expired" | "pendingCreate" | "pendingTransfer";
-
-const FILTERS: { key: StatusFilter; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "active", label: "Active" },
-  { key: "expired", label: "Expired" },
-  { key: "pendingCreate", label: "Pending" },
+const domains = [
+  {
+    id: 1,
+    name: "opendomain.dev",
+    status: "Active",
+    expires: "2026-12-15",
+    registrar: "OpenSRS",
+    dns: "Managed",
+    privacy: true,
+    renewal: "$19.99",
+  },
+  {
+    id: 2,
+    name: "cloudapp.io",
+    status: "Active",
+    expires: "2027-03-22",
+    registrar: "Cloudflare",
+    dns: "Managed",
+    privacy: true,
+    renewal: "$89.00",
+  },
+  {
+    id: 3,
+    name: "example.com",
+    status: "Active",
+    expires: "2026-11-30",
+    registrar: "OpenSRS",
+    dns: "External",
+    privacy: false,
+    renewal: "$14.99",
+  },
+  {
+    id: 4,
+    name: "web3tools.org",
+    status: "Pending Transfer",
+    expires: "2027-08-10",
+    registrar: "GoDaddy",
+    dns: "Managed",
+    privacy: true,
+    renewal: "$18.50",
+  },
+  {
+    id: 5,
+    name: "saasplatform.ai",
+    status: "Active",
+    expires: "2028-01-05",
+    registrar: "OpenSRS",
+    dns: "Managed",
+    privacy: true,
+    renewal: "$249.00",
+  },
+  {
+    id: 6,
+    name: "testlab.xyz",
+    status: "Expiring Soon",
+    expires: "2026-10-01",
+    registrar: "Namecheap",
+    dns: "External",
+    privacy: false,
+    renewal: "$9.99",
+  },
 ];
 
 export default function DomainsPage() {
-  const [domains, setDomains] = useState<DomainResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<StatusFilter>("all");
-  const [search, setSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filter, setFilter] = useState<string>("all");
 
-  useEffect(() => {
-    api
-      .listDomains()
-      .then(setDomains)
-      .catch((e) => toast(e.message, "error"))
-      .finally(() => setLoading(false));
-  }, []);
+  const filteredDomains = domains.filter((domain) => {
+    const matchesSearch = domain.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter =
+      filter === "all" ||
+      (filter === "active" && domain.status === "Active") ||
+      (filter === "expiring" && domain.status === "Expiring Soon") ||
+      (filter === "transfer" && domain.status === "Pending Transfer");
 
-  const filtered = domains.filter((d) => {
-    if (filter !== "all" && d.status !== filter) return false;
-    if (search && !d.name.includes(search.toLowerCase())) return false;
-    return true;
+    return matchesSearch && matchesFilter;
   });
 
   return (
-    <Shell>
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-ink">Domains</h1>
-          <div className="flex gap-2">
-            <Link
-              href="/domains/transfer"
-              className="rounded-md border border-edge px-3 py-1.5 text-sm text-ink-dim hover:text-ink hover:bg-ground-raised transition-colors"
-            >
-              Transfer in
-            </Link>
-            <Link
-              href="/"
-              className="rounded-md bg-focus px-3 py-1.5 text-sm font-medium text-ground hover:bg-focus/90 transition-colors"
-            >
-              Register new
-            </Link>
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Domains</h1>
+          <p className="text-text-tertiary mt-1">
+            Manage your domain portfolio • {domains.length} domains
+          </p>
         </div>
+        <button className="flex items-center gap-2 rounded-lg bg-gradient-to-br from-primary-600 to-primary-800 px-4 py-2.5 text-sm font-medium text-white hover:from-primary-700 hover:to-primary-900 transition-colors">
+          <Plus className="h-4 w-4" />
+          Add Domain
+        </button>
+      </div>
 
-        <div className="mt-6 flex items-center gap-4">
-          <div className="flex gap-1 rounded-md border border-edge bg-ground-raised p-0.5">
-            {FILTERS.map((f) => (
+      {/* Stats */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="hover:border-primary-400/30 transition-colors">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-text-tertiary">Total Domains</p>
+                <p className="text-2xl font-bold mt-1">{domains.length}</p>
+              </div>
+              <div className="rounded-lg bg-primary-500/10 p-2">
+                <Globe className="h-5 w-5 text-primary-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:border-primary-400/30 transition-colors">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-text-tertiary">Expiring Soon</p>
+                <p className="text-2xl font-bold mt-1">1</p>
+              </div>
+              <div className="rounded-lg bg-orange-500/10 p-2">
+                <Calendar className="h-5 w-5 text-orange-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:border-primary-400/30 transition-colors">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-text-tertiary">Privacy Protected</p>
+                <p className="text-2xl font-bold mt-1">4</p>
+              </div>
+              <div className="rounded-lg bg-green-500/10 p-2">
+                <Lock className="h-5 w-5 text-green-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:border-primary-400/30 transition-colors">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-text-tertiary">Monthly Spend</p>
+                <p className="text-2xl font-bold mt-1">$49.85</p>
+              </div>
+              <div className="rounded-lg bg-blue-500/10 p-2">
+                <div className="text-blue-400 text-lg font-bold">$</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Controls */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+              <input
+                type="search"
+                placeholder="Search domains..."
+                className="w-full rounded-md border border-surface-border bg-surface-raised py-2 pl-9 pr-4 text-sm placeholder:text-text-tertiary focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="flex gap-2">
               <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`rounded px-2.5 py-1 text-xs transition-colors ${
-                  filter === f.key
-                    ? "bg-ground-overlay text-ink"
-                    : "text-ink-faint hover:text-ink-dim"
+                onClick={() => setFilter("all")}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  filter === "all"
+                    ? "bg-primary-600 text-white"
+                    : "text-text-secondary hover:bg-surface-raised"
                 }`}
               >
-                {f.label}
+                All
               </button>
-            ))}
+              <button
+                onClick={() => setFilter("active")}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  filter === "active"
+                    ? "bg-primary-600 text-white"
+                    : "text-text-secondary hover:bg-surface-raised"
+                }`}
+              >
+                Active
+              </button>
+              <button
+                onClick={() => setFilter("expiring")}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  filter === "expiring"
+                    ? "bg-orange-600 text-white"
+                    : "text-text-secondary hover:bg-surface-raised"
+                }`}
+              >
+                Expiring
+              </button>
+              <button
+                onClick={() => setFilter("transfer")}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  filter === "transfer"
+                    ? "bg-purple-600 text-white"
+                    : "text-text-secondary hover:bg-surface-raised"
+                }`}
+              >
+                Transfers
+              </button>
+            </div>
           </div>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter domains..."
-            className="rounded-md border border-edge bg-ground-raised px-3 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-focus focus:outline-none focus:ring-1 focus:ring-focus"
-          />
-        </div>
+        </CardContent>
+      </Card>
 
-        {loading ? (
-          <p className="mt-10 text-sm text-ink-faint">Loading domains...</p>
-        ) : filtered.length === 0 ? (
-          <div className="mt-10 rounded-lg border border-edge bg-ground-raised p-10 text-center">
-            {domains.length === 0 ? (
-              <>
-                <p className="text-sm text-ink-dim">No domains registered yet.</p>
-                <Link
-                  href="/"
-                  className="mt-2 inline-block text-sm text-focus hover:underline"
-                >
-                  Search for a domain
-                </Link>
-              </>
-            ) : (
-              <p className="text-sm text-ink-dim">
-                No domains match your filters.
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="mt-4 overflow-hidden rounded-lg border border-edge">
-            <table className="w-full text-left text-sm">
+      {/* Domain table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Domain List</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full">
               <thead>
-                <tr className="border-b border-edge bg-ground-raised text-xs text-ink-faint">
-                  <th className="px-4 py-2.5 font-medium">Domain</th>
-                  <th className="px-4 py-2.5 font-medium">Status</th>
-                  <th className="px-4 py-2.5 font-medium">Expires</th>
-                  <th className="px-4 py-2.5 font-medium">Auto-renew</th>
-                  <th className="px-4 py-2.5 font-medium text-right">Actions</th>
+                <tr className="border-b border-surface-border">
+                  <th className="py-3 text-left text-sm font-medium text-text-tertiary">Domain</th>
+                  <th className="py-3 text-left text-sm font-medium text-text-tertiary">Status</th>
+                  <th className="py-3 text-left text-sm font-medium text-text-tertiary">Expires</th>
+                  <th className="py-3 text-left text-sm font-medium text-text-tertiary">Registrar</th>
+                  <th className="py-3 text-left text-sm font-medium text-text-tertiary">DNS</th>
+                  <th className="py-3 text-left text-sm font-medium text-text-tertiary">Privacy</th>
+                  <th className="py-3 text-left text-sm font-medium text-text-tertiary">Renewal</th>
+                  <th className="py-3 text-left text-sm font-medium text-text-tertiary"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-edge">
-                {filtered.map((d) => (
-                  <DomainRow key={d.id} domain={d} onUpdate={setDomains} allDomains={domains} />
+              <tbody>
+                {filteredDomains.map((domain) => (
+                  <tr key={domain.id} className="border-b border-surface-border last:border-0 hover:bg-surface-raised/50 transition-colors">
+                    <td className="py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-lg bg-primary-500/10 flex items-center justify-center">
+                          <Globe className="h-4 w-4 text-primary-400" />
+                        </div>
+                        <div>
+                          <div className="font-medium">{domain.name}</div>
+                          <div className="text-xs text-text-tertiary">ID: {domain.id}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        domain.status === "Active"
+                          ? "bg-green-500/10 text-green-400"
+                          : domain.status === "Expiring Soon"
+                          ? "bg-orange-500/10 text-orange-400"
+                          : "bg-purple-500/10 text-purple-400"
+                      }`}>
+                        {domain.status}
+                      </span>
+                    </td>
+                    <td className="py-4 text-sm">{domain.expires}</td>
+                    <td className="py-4 text-sm">{domain.registrar}</td>
+                    <td className="py-4">
+                      <span className={`text-xs font-medium ${
+                        domain.dns === "Managed"
+                          ? "text-primary-400"
+                          : "text-text-tertiary"
+                      }`}>
+                        {domain.dns}
+                      </span>
+                    </td>
+                    <td className="py-4">
+                      {domain.privacy ? (
+                        <div className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-400">
+                          <Lock className="h-2 w-2" /> On
+                        </div>
+                      ) : (
+                        <span className="text-xs text-text-tertiary">Off</span>
+                      )}
+                    </td>
+                    <td className="py-4 text-sm font-medium">{domain.renewal}</td>
+                    <td className="py-4">
+                      <button className="text-text-tertiary hover:text-primary-400 transition-colors">
+                        <ArrowUpRight className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
-    </Shell>
-  );
-}
-
-function DomainRow({
-  domain: d,
-  onUpdate,
-  allDomains,
-}: {
-  domain: DomainResponse;
-  onUpdate: (d: DomainResponse[]) => void;
-  allDomains: DomainResponse[];
-}) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [toggling, setToggling] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function close(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setMenuOpen(false);
-    }
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
-
-  async function toggleAutoRenew() {
-    setToggling(true);
-    try {
-      const updated = await api.updateDomain(d.id, { auto_renew: !d.auto_renew });
-      onUpdate(allDomains.map((x) => (x.id === d.id ? updated : x)));
-      toast(`Auto-renew ${updated.auto_renew ? "enabled" : "disabled"}`, "success");
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Failed to update", "error");
-    } finally {
-      setToggling(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (!confirm(`Delete ${d.name}? This action cannot be undone.`)) return;
-    try {
-      await api.deleteDomain(d.id);
-      onUpdate(allDomains.filter((x) => x.id !== d.id));
-      toast(`${d.name} deleted`, "success");
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Failed to delete", "error");
-    }
-  }
-
-  const daysLeft = Math.ceil(
-    (new Date(d.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-  );
-
-  return (
-    <tr className="hover:bg-ground-raised/50">
-      <td className="px-4 py-3">
-        <Link
-          href={`/domains/${d.id}`}
-          className="font-mono text-sm text-ink hover:text-focus transition-colors"
-        >
-          {d.name}
-        </Link>
-      </td>
-      <td className="px-4 py-3">
-        <StatusBadge status={d.status} />
-      </td>
-      <td className="px-4 py-3">
-        <span className="font-mono text-xs text-ink-dim">
-          {new Date(d.expiry_date).toLocaleDateString("en-AU", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          })}
-        </span>
-        {daysLeft > 0 && daysLeft < 30 && (
-          <span className="ml-2 text-xs text-caution">{daysLeft}d left</span>
-        )}
-      </td>
-      <td className="px-4 py-3">
-        <button
-          onClick={toggleAutoRenew}
-          disabled={toggling}
-          className={`relative h-5 w-9 rounded-full transition-colors ${
-            d.auto_renew ? "bg-live" : "bg-edge"
-          } ${toggling ? "opacity-50" : ""}`}
-        >
-          <span
-            className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-              d.auto_renew ? "translate-x-4" : "translate-x-0"
-            }`}
-          />
-        </button>
-      </td>
-      <td className="px-4 py-3 text-right">
-        <div className="relative inline-block" ref={ref}>
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="rounded-md px-2 py-1 text-xs text-ink-faint hover:text-ink hover:bg-ground-overlay transition-colors"
-          >
-            &middot;&middot;&middot;
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-md border border-edge bg-ground-raised py-1 shadow-lg">
-              <Link
-                href={`/domains/${d.id}?tab=dns`}
-                className="block px-3 py-1.5 text-xs text-ink-dim hover:text-ink hover:bg-ground-overlay transition-colors"
-              >
-                DNS records
-              </Link>
-              <Link
-                href={`/domains/${d.id}?tab=settings`}
-                className="block px-3 py-1.5 text-xs text-ink-dim hover:text-ink hover:bg-ground-overlay transition-colors"
-              >
-                Settings
-              </Link>
-              <Link
-                href={`/domains/${d.id}?tab=settings&action=renew`}
-                className="block px-3 py-1.5 text-xs text-ink-dim hover:text-ink hover:bg-ground-overlay transition-colors"
-              >
-                Renew
-              </Link>
-              <button
-                onClick={handleDelete}
-                className="w-full px-3 py-1.5 text-left text-xs text-fault hover:bg-ground-overlay transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          )}
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    active: "text-live bg-live-dim",
-    expired: "text-fault bg-fault/10",
-    pendingTransfer: "text-caution bg-caution/10",
-    pendingCreate: "text-focus bg-focus-dim",
-    pendingDelete: "text-fault bg-fault/10",
-    suspended: "text-ink-faint bg-ground-overlay",
-  };
-  return (
-    <span
-      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${map[status] || "text-ink-faint bg-ground-overlay"}`}
-    >
-      {status}
-    </span>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
