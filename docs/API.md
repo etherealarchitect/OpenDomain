@@ -1,6 +1,6 @@
 # OpenDomain API Reference
 
-**Base URL**: `https://opendomain-api.fly.dev/api/v1` (production) or `http://localhost:8000/api/v1` (development)
+**Base URL**: `https://app.example.com/api/v1` (same-origin production deployment) or `http://localhost:8000/api/v1` (development)
 
 **Interactive Docs**: Available at `/docs` (Swagger UI) and `/redoc` (ReDoc) when the backend is running.
 
@@ -8,28 +8,36 @@
 
 ## Authentication
 
-All endpoints except `POST /auth/register`, `POST /auth/login`, and `POST /whois/` require authentication.
+Browser authentication uses an opaque server-side session returned only after email verification and mandatory TOTP MFA. The browser stores the session in an `HttpOnly`, `Secure` (production), `SameSite=Lax` cookie named `opendomain_session`; JavaScript cannot read it. Browser clients must send requests with credentials enabled.
 
-Send a JWT Bearer token in the `Authorization` header:
+The sequence is:
 
-```
-Authorization: Bearer <access_token>
-```
+1. `POST /auth/register` creates or refreshes an unverified account and sends an email-verification link.
+2. `POST /auth/verify-email` consumes the one-time token and returns an MFA-enrollment challenge.
+3. `POST /auth/mfa/enrollment` returns a local QR data URI and authenticator secret for that challenge.
+4. `POST /auth/mfa/verify` completes MFA enrollment or a login challenge, sets the session cookie, and returns recovery codes only for first-time enrollment.
+5. `GET /auth/me` and all protected APIs use that cookie.
 
-Obtain a token by calling `POST /auth/login`.
+Verification and password-reset links place their token in a URL fragment (`#token=…`) so normal HTTP request URLs and referrer headers do not include the secret. API clients must extract the fragment client-side and POST the token in the request body.
 
-### Example
+### Cookie-based CLI/client example
 
 ```bash
-# Login and capture token
-TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+# Password validation returns an MFA challenge, not a session.
+curl -s -c cookies.txt -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "secret"}' \
-  | jq -r '.access_token')
+  -d '{"email":"user@example.com","password":"A-strong-password-123"}'
 
-# Use the token
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/domains/
+# Submit the returned challenge_id and an authenticator or recovery code.
+curl -s -b cookies.txt -c cookies.txt -X POST http://localhost:8000/api/v1/auth/mfa/verify \
+  -H "Content-Type: application/json" \
+  -d '{"challenge_id":"<challenge-id>","code":"123456"}'
+
+# The cookie jar now authenticates protected requests.
+curl -b cookies.txt http://localhost:8000/api/v1/domains/
 ```
+
+Legacy Bearer JWT support may exist only for compatibility; new integrations must use the staged authentication flow above.
 
 ---
 
@@ -101,31 +109,24 @@ Create a new user account.
 | `company` | string | No | Organization name |
 | `phone` | string | No | Phone number |
 
-**Response** (201):
+**Response** (`202 Accepted`):
 
 ```json
 {
-  "id": "uuid",
-  "email": "user@example.com",
-  "full_name": "Jane Doe",
-  "company": null,
-  "phone": null,
-  "role": "USER",
-  "is_active": true,
-  "is_verified": false,
-  "two_factor_enabled": false,
-  "created_at": "2026-09-11T00:00:00Z"
+  "message": "Check your email to verify your address and continue setup.",
+  "email": "jane@example.com",
+  "verification_required": true
 }
 ```
 
-**Errors**: `409` if email already registered.
+The endpoint does not establish a session. It is intentionally account-existence-safe for an already registered email. Passwords must be 12–72 UTF-8 bytes and include lowercase, uppercase, and numeric characters.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "jane@example.com",
-    "password": "strongpassword123",
+    "password": "A-strong-password-123",
     "full_name": "Jane Doe"
   }'
 ```
@@ -136,7 +137,7 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
 
 `POST /auth/login`
 
-Authenticate and receive a JWT token.
+Validate account credentials and receive a short-lived MFA challenge. This endpoint never creates a browser session.
 
 **Auth required**: No
 
@@ -151,17 +152,20 @@ Authenticate and receive a JWT token.
 
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1...",
-  "token_type": "bearer"
+  "challenge_id": "uuid",
+  "next_step": "mfa",
+  "expires_in_seconds": 600
 }
 ```
 
-**Errors**: `401` invalid credentials, `403` account disabled.
+`next_step` is `mfa_enrollment` when a verified account has not completed authenticator setup. Submit the returned `challenge_id` and a TOTP or recovery code to `POST /auth/mfa/verify`; that response sets the session cookie.
+
+**Errors**: `401` invalid or incomplete account credentials; `429` rate limited.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email": "jane@example.com", "password": "strongpassword123"}'
+  -d '{"email": "jane@example.com", "password": "A-strong-password-123"}'
 ```
 
 ---

@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     environment: str = "development"
 
     database_url: str = "postgresql+asyncpg://opendomain:opendomain@localhost:5432/opendomain"
+    database_pool_size: int = Field(default=5, ge=1, le=50)
+    database_max_overflow: int = Field(default=5, ge=0, le=50)
     redis_url: str = "redis://localhost:6379/0"
 
     # Required outside local development. SECRET_KEY also provides the default

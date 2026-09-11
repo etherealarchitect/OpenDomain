@@ -31,6 +31,18 @@ class AuthRateLimiter:
         digest = hashlib.sha256(identifier.encode()).hexdigest()
         return f"opendomain:auth-rate-limit:{scope}:{digest}"
 
+    async def ping(self) -> None:
+        """Verify Redis availability for readiness checks without changing a limit."""
+        try:
+            await self._redis().ping()
+        except RedisError as exc:
+            raise RateLimitUnavailableError("Authentication is temporarily unavailable") from exc
+
+    async def close(self) -> None:
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
     async def check(self, scope: str, identifier: str, limit: int, window_seconds: int) -> None:
         key = self._key(scope, identifier)
         try:

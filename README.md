@@ -2,15 +2,17 @@
 
 **The first Open Source Agentic Domain Registrar**
 
-OpenDomain is a full-stack, open-source domain registrar platform with an integrated AI agent that can execute any platform action through natural language. Register domains, manage DNS, monitor uptime, trade on the marketplace, and more — all from a terminal-inspired interface or a conversational AI assistant.
+OpenDomain is a full-stack, open-source domain management platform with an integrated AI agent that can execute supported platform actions through natural language. Explore domain workflows, manage application DNS data, monitor domains, trade on the marketplace, and more — all from a terminal-inspired interface or a conversational AI assistant.
+
+> **Launch status:** OpenDomain currently runs domain-registration workflows in simulated EPP mode. It is **not** an accredited registrar and should not be used for live registration, authoritative DNS hosting, payment processing, or certificate issuance until the required provider integrations and operational controls are completed.
 
 ---
 
 ## Features
 
 ### Core Registrar
-- **Domain Registration & Transfer** — Search, register, renew, and transfer domains with full ICANN lifecycle support
-- **DNS Management** — Full CRUD for 14 record types (A, AAAA, CNAME, MX, TXT, NS, SRV, CAA, SOA, PTR, NAPTR, SSHFP, TLSA, LOC) with BIND import/export
+- **Simulated Domain Registration & Transfer** — Explore search, registration, renewal, and transfer workflows while `EPP_SIMULATE=true`
+- **Application DNS Management** — CRUD for 14 record types (A, AAAA, CNAME, MX, TXT, NS, SRV, CAA, SOA, PTR, NAPTR, SSHFP, TLSA, LOC) with BIND import/export; public authoritative publishing requires a provider integration
 - **DNS Templates** — One-click setup for GitHub Pages, Google Workspace, Microsoft 365, Vercel, and Netlify
 - **WHOIS Contacts** — Create and manage registrant contacts with privacy protection enabled by default
 - **WHOIS Lookup** — Query registration data for any domain
@@ -24,8 +26,8 @@ OpenDomain is a full-stack, open-source domain registrar platform with an integr
 ### Monitoring & Alerts
 - **Domain Watch** — Monitor availability of domains you want to acquire
 - **Uptime Checks** — HTTP/HTTPS monitoring with configurable intervals
-- **SSL Certificate Tracking** — Monitor certificate expiry and chain validity
-- **Alert Rules** — Configurable notifications for expiry, downtime, and SSL issues
+- **SSL Certificate Tracking** — Track certificate metadata; live ACME issuance/renewal is not yet implemented
+- **Alert Rules** — Configurable alert data; scheduled alert delivery requires a production worker
 
 ### Marketplace
 - **List Domains for Sale** — Set asking prices for domains you own
@@ -34,7 +36,7 @@ OpenDomain is a full-stack, open-source domain registrar platform with an integr
 
 ### Billing & Administration
 - **Invoices & Transactions** — Full billing history and payment tracking
-- **Payment Methods** — Manage stored payment methods
+- **Payment Methods** — Manage payment-method records; connect a PCI-compliant payment processor before accepting payments
 - **API Keys** — Programmatic access with scoped permissions
 - **Webhooks** — Subscribe to platform events (domain.registered, dns.updated, etc.)
 - **Email Forwarding** — Create forwarding rules including catch-all addresses
@@ -54,11 +56,11 @@ OpenDomain is a full-stack, open-source domain registrar platform with an integr
 | Backend | Python 3.12+ / FastAPI / SQLAlchemy (async) / Alembic |
 | Frontend | Next.js 15 / TypeScript / Tailwind CSS v4 / React Query / Zustand |
 | Database | PostgreSQL 16 + Redis |
-| DNS | PowerDNS integration + native zone management |
-| EPP | Async EPP client (RFC 5730-5734) with simulation mode |
-| AI | Claude via AWS Bedrock with 21 tool definitions |
-| Auth | JWT with bcrypt password hashing |
-| Infrastructure | Docker Compose |
+| DNS | Application-managed zone data; provider synchronization pending |
+| EPP | Async EPP client (RFC 5730-5734), simulated by default |
+| AI | Claude via AWS Bedrock; enable only with configured credentials and spend controls |
+| Auth | Email verification, mandatory TOTP MFA, recovery codes, and opaque HttpOnly sessions |
+| Infrastructure | Docker Compose for development; hardened Vultr Compose/Caddy path documented |
 
 ---
 
@@ -145,11 +147,11 @@ tests/                     Backend and frontend test suites
 
 ## API Overview
 
-All endpoints are under `/api/v1`. Authentication is via JWT Bearer token.
+All endpoints are under `/api/v1`. Browser authentication is staged: email verification, TOTP MFA, then an opaque server-side session delivered in an `HttpOnly` cookie. See [`docs/API.md`](docs/API.md) for the complete flow and API-client guidance.
 
 | Module | Endpoints | Description |
 |--------|-----------|-------------|
-| Auth | 3 | Register, login, profile |
+| Auth | 12 | Registration, verification, MFA, sessions, recovery, profile |
 | Domains | 6 | CRUD, search, renew, transfer |
 | DNS | 5 | Records, zones, templates, BIND export |
 | Contacts | 4 | WHOIS contact management |
@@ -164,7 +166,7 @@ All endpoints are under `/api/v1`. Authentication is via JWT Bearer token.
 | Bulk | 5 | Batch domain operations |
 | API Keys | 3 | Programmatic access tokens |
 
-Interactive API documentation is available at `/docs` (Swagger UI) when the backend is running.
+Interactive API documentation is available at `/docs` (Swagger UI) when the backend is running. For a hardened Vultr deployment, follow [`docs/DEPLOY_VULTR.md`](docs/DEPLOY_VULTR.md); it keeps internal services private and retains Fly as a rollback target during cutover.
 
 ---
 
@@ -176,13 +178,16 @@ Key environment variables:
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql+asyncpg://opendomain:opendomain@localhost:5432/opendomain` |
 | `REDIS_URL` | Redis connection string | `redis://localhost:6379/0` |
-| `JWT_SECRET` | Secret key for JWT signing | (required) |
-| `EPP_HOST` | EPP server hostname | `localhost` |
-| `EPP_PORT` | EPP server port | `700` |
+| `SECRET_KEY` | Strong base secret (32+ characters) | required in production |
+| `AUTH_ENCRYPTION_KEY` | Fernet key for encrypted TOTP secrets | required in production |
+| `TOKEN_PEPPER` | Independent HMAC pepper for opaque tokens | recommended distinct secret |
+| `RESEND_API_KEY` | Transactional email credential | required in production |
+| `MAIL_FROM` | Verified Resend sender | required in production |
+| `COOKIE_SECURE` | Require HTTPS session cookies | `true` in production |
 | `EPP_SIMULATE` | Run EPP in simulation mode | `true` |
 | `AWS_REGION` | AWS region for Bedrock | `ap-southeast-2` |
 | `ANTHROPIC_MODEL` | Claude model ID | `anthropic.claude-fable-5` |
-| `NEXT_PUBLIC_API_URL` | Backend URL for frontend | `http://localhost:8000` |
+| `NEXT_PUBLIC_API_URL` | Explicit API origin for local development; production is same-origin | empty |
 
 ---
 

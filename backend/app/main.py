@@ -19,9 +19,11 @@ from backend.app.api.routes import (
 )
 from backend.app.core.config import settings
 from backend.app.core.database import engine
+from backend.app.core.rate_limit import RateLimitUnavailableError, rate_limiter
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     settings.validate_production()
     yield
+    await rate_limiter.close()
     await engine.dispose()
 
 
@@ -81,4 +84,24 @@ app.include_router(api_keys.router, prefix="/api/v1")
 
 @app.get("/api/health")
 async def health():
+    """Liveness probe: the application process can serve requests."""
+    return {"status": "ok", "service": settings.app_name}
+
+
+@app.get("/api/ready")
+async def readiness():
+    """Readiness probe: dependencies required for authenticated traffic are live."""
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
+        await rate_limiter.ping()
+    except RateLimitUnavailableError as exc:
+        logger.warning("Readiness failed because Redis is unavailable")
+        return JSONResponse(status_code=503, content={"status": "unavailable", "detail": str(exc)})
+    except Exception:
+        logger.exception("Readiness check failed")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable", "detail": "A required dependency is unavailable"},
+        )
     return {"status": "ok", "service": settings.app_name}
