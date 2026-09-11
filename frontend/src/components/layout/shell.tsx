@@ -1,26 +1,13 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-
-const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/domains", label: "Domains" },
-  { href: "/contacts", label: "Contacts" },
-  { href: "/agent", label: "Agent" },
-  { href: "/whois", label: "WHOIS" },
-  { href: "/monitoring", label: "Monitoring" },
-  { href: "/marketplace", label: "Marketplace" },
-  { href: "/billing", label: "Billing" },
-  { href: "/settings", label: "Settings" },
-  { href: "/account", label: "Account" },
-];
+import { Sidebar } from "./sidebar";
+import { TopBar } from "./top-bar";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { user, loading, init, logout } = useAuth();
-  const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
@@ -35,8 +22,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-sm text-ink-faint">Loading...</p>
+      <div className="flex min-h-screen items-center justify-center bg-[#f8f7fe]">
+        <div className="flex flex-col items-center">
+          <div className="relative">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#8a5bd1] to-[#a855ef]"></div>
+            <div className="absolute -inset-2 bg-gradient-to-r from-[#8a5bd1]/20 to-[#a855ef]/20 blur-xl opacity-40 animate-pulse"></div>
+          </div>
+          <p className="mt-4 text-sm text-[#1d1528]/70 font-body">Loading OpenDomain...</p>
+        </div>
       </div>
     );
   }
@@ -44,49 +37,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
   if (!user) return null;
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="fixed left-0 top-0 flex h-full w-52 flex-col border-r border-edge bg-ground px-3 py-4">
-        <Link
-          href="/dashboard"
-          className="mb-8 px-2 font-mono text-sm tracking-tight text-ink-dim"
-        >
-          opendomain
-        </Link>
-
-        <nav className="flex flex-col gap-0.5">
-          {NAV.map((item) => {
-            const active = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`rounded-md px-2 py-1.5 text-sm transition-colors ${
-                  active
-                    ? "bg-ground-raised text-ink"
-                    : "text-ink-dim hover:text-ink hover:bg-ground-raised/50"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="mt-auto border-t border-edge pt-3">
-          <p className="truncate px-2 text-xs text-ink-dim">{user.email}</p>
-          <button
-            onClick={async () => {
-              await logout();
-              router.push("/login");
-            }}
-            className="mt-1 w-full rounded-md px-2 py-1.5 text-left text-xs text-ink-faint hover:text-ink hover:bg-ground-raised/50 transition-colors"
-          >
-            Sign out
-          </button>
-        </div>
-      </aside>
-
-      <main className="ml-52 flex-1">{children}</main>
+    <div className="flex min-h-screen bg-[#f8f7fe]">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <TopBar />
+        <main className="flex-1 p-6">{children}</main>
+      </div>
     </div>
   );
 }

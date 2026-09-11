@@ -4,37 +4,41 @@
 
 @layer base {
   :root {
-    /* Base44-inspired design system */
-    --background: 270 30% 99%;
-    --foreground: 262 25% 13%;
+    /* Base44 design system */
+    --background: 252 100% 99%;          /* #f8f7fe */
+    --foreground: 262 33% 12%;           /* #1d1528 */
     --card: 0 0% 100%;
-    --card-foreground: 262 25% 13%;
+    --card-foreground: 262 33% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 262 25% 13%;
-    --primary: 265 52% 55%;
+    --popover-foreground: 262 33% 12%;
+    --primary: 265 55% 58%;              /* #8a5bd1 */
     --primary-foreground: 0 0% 100%;
     --secondary: 262 15% 96%;
     --secondary-foreground: 262 20% 20%;
-    --muted: 262 15% 96%;
+    --muted: 252 100% 98%;               /* #f5f3ff */
     --muted-foreground: 262 10% 45%;
-    --accent: 282 64% 58%;
+    --accent: 282 83% 63%;               /* #a855ef */
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 84% 60%;
+    --destructive: 0 84% 60%;            /* #ef4444 */
     --destructive-foreground: 0 0% 100%;
-    --border: 262 15% 90%;
-    --input: 262 15% 90%;
-    --ring: 265 52% 55%;
+    --success: 142 76% 36%;              /* #10b981 */
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;               /* #f59e0b */
+    --warning-foreground: 0 0% 100%;
+    --border: 252 33% 93%;               /* #e9e6f2 */
+    --input: 252 33% 93%;
+    --ring: 265 55% 58%;
     --radius: 0.75rem;
 
     /* Base44 sidebar */
-    --sidebar-background: 262 25% 98%;
-    --sidebar-foreground: 262 25% 13%;
-    --sidebar-primary: 265 52% 55%;
+    --sidebar-background: 252 100% 99%;  /* #faf8ff */
+    --sidebar-foreground: 262 33% 12%;
+    --sidebar-primary: 265 55% 58%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 282 64% 58%;
+    --sidebar-accent: 282 83% 63%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 262 15% 90%;
-    --sidebar-ring: 265 52% 55%;
+    --sidebar-border: 252 33% 93%;       /* #e9e6f2 */
+    --sidebar-ring: 265 55% 58%;
 
     /* Base44 fonts */
     --font-heading: 'Lato', ui-sans-serif, system-ui, sans-serif;
@@ -44,34 +48,38 @@
   }
 
   .dark {
-    --background: 262 25% 5%;
+    --background: 262 33% 5%;            /* Darker version of #1d1528 */
     --foreground: 262 15% 98%;
-    --card: 262 25% 8%;
+    --card: 262 33% 8%;
     --card-foreground: 262 15% 98%;
-    --popover: 262 25% 8%;
+    --popover: 262 33% 8%;
     --popover-foreground: 262 15% 98%;
-    --primary: 265 52% 55%;
+    --primary: 265 55% 58%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 262 25% 15%;
+    --secondary: 262 33% 15%;
     --secondary-foreground: 262 15% 98%;
-    --muted: 262 25% 15%;
+    --muted: 262 33% 15%;
     --muted-foreground: 262 10% 65%;
-    --accent: 282 64% 58%;
+    --accent: 282 83% 63%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 262 25% 20%;
-    --input: 262 25% 20%;
-    --ring: 265 52% 55%;
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --border: 262 33% 20%;
+    --input: 262 33% 20%;
+    --ring: 265 55% 58%;
 
-    --sidebar-background: 262 25% 10%;
+    --sidebar-background: 262 33% 10%;
     --sidebar-foreground: 262 15% 98%;
-    --sidebar-primary: 265 52% 55%;
+    --sidebar-primary: 265 55% 58%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 282 64% 58%;
+    --sidebar-accent: 282 83% 63%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 262 25% 20%;
-    --sidebar-ring: 265 52% 55%;
+    --sidebar-border: 262 33% 20%;
+    --sidebar-ring: 265 55% 58%;
   }
 
   * {
@@ -102,11 +110,11 @@
 
 /* Terminal-like elements */
 .terminal {
-  @apply bg-[hsl(262_25%_5%)] border border-border rounded-lg font-mono text-sm;
+  @apply bg-[hsl(262_33%_5%)] border border-border rounded-lg font-mono text-sm;
 }
 
 .terminal-header {
-  @apply flex items-center px-4 py-3 border-b border-border bg-[hsl(262_25%_8%)];
+  @apply flex items-center px-4 py-3 border-b border-border bg-[hsl(262_33%_8%)];
 }
 
 .terminal-dot {
@@ -128,4 +136,205 @@
 
 .text-balance {
   text-wrap: balance;
+}
+
+/* Base44 utility classes */
+.text-primary-gradient {
+  @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+}
+
+/* Base44 Spacing Scale - layout.spacingScale */
+.space-base44-0  { margin: 0px; padding: 0px; }
+.space-base44-1  { margin: 0.25rem; padding: 0.25rem; }
+.space-base44-2  { margin: 0.5rem; padding: 0.5rem; }
+.space-base44-3  { margin: 0.75rem; padding: 0.75rem; }
+.space-base44-4  { margin: 1rem; padding: 1rem; }
+.space-base44-6  { margin: 1.5rem; padding: 1.5rem; }
+.space-base44-8  { margin: 2rem; padding: 2rem; }
+.space-base44-12 { margin: 3rem; padding: 3rem; }
+.space-base44-16 { margin: 4rem; padding: 4rem; }
+.space-base44-24 { margin: 6rem; padding: 6rem; }
+
+/* Base44 Line Heights - typography.lineHeights */
+.leading-tight    { line-height: 1.1; }
+.leading-snug     { line-height: 1.25; }
+.leading-normal   { line-height: 1.5; }
+.leading-relaxed  { line-height: 1.75; }
+
+/* Base44 Font Weights - typography.fontWeightScale */
+.font-light     { font-weight: 300; }
+.font-normal    { font-weight: 400; }
+.font-medium    { font-weight: 500; }
+.font-semibold  { font-weight: 600; }
+.font-bold      { font-weight: 700; }
+.font-black     { font-weight: 900; }
+
+/* Base44 Font Sizes - typography.fontSizeScale */
+.text-xs    { font-size: 0.75rem; }
+.text-sm    { font-size: 0.875rem; }
+.text-base  { font-size: 1rem; }
+.text-lg    { font-size: 1.125rem; }
+.text-xl    { font-size: 1.25rem; }
+.text-2xl   { font-size: 1.5rem; }
+.text-3xl   { font-size: 1.875rem; }
+.text-4xl   { font-size: 2.25rem; }
+.text-5xl   { font-size: 3rem; }
+.text-6xl   { font-size: 3.75rem; }
+.text-7xl   { font-size: 4.5rem; }
+
+/* Base44 Container Widths - layout.containerWidths */
+.container-base44-full    { width: 100%; max-width: 100%; }
+.container-base44-default { width: 100%; max-width: 42rem; }
+.container-base44-large   { width: 100%; max-width: 80rem; }
+
+/* Base44 Glass Effects - effects.glassEffects */
+.glass-base44-light {
+  @apply bg-white/10 backdrop-blur-md border border-white/20;
+}
+
+.glass-base44-dark {
+  @apply bg-black/10 backdrop-blur-md border border-white/5;
+}
+
+/* Base44 Shadows - effects.shadows */
+.shadow-base44-sm { @apply shadow-sm; }
+.shadow-base44-md { @apply shadow-md; }
+.shadow-base44-xl { @apply shadow-xl; }
+
+.shadow-base44-glow {
+  @apply -inset-2 bg-gradient-to-r from-primary/20 to-accent/20 blur-xl opacity-40;
+}
+
+.bg-base44-primary {
+  @apply bg-primary text-primary-foreground;
+}
+
+.bg-base44-accent {
+  @apply bg-accent text-accent-foreground;
+}
+
+.bg-base44-success {
+  @apply bg-success text-success-foreground;
+}
+
+.bg-base44-warning {
+  @apply bg-warning text-warning-foreground;
+}
+
+.bg-base44-destructive {
+  @apply bg-destructive text-destructive-foreground;
+}
+
+.border-base44 {
+  @apply border-border;
+}
+
+.shadow-base44 {
+  @apply shadow-[0_4px_16px_-2px_rgba(138,91,209,0.15)];
+}
+
+.shadow-base44-lg {
+  @apply shadow-[0_8px_32px_-4px_rgba(138,91,209,0.2)];
+}
+
+.hover-lift {
+  @apply transition-transform duration-200 hover:-translate-y-0.5;
+}
+
+.pressable {
+  @apply transition-all duration-150 active:scale-95;
+}
+
+/* Base44 Animations - effects.animations */
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s linear infinite;
+  background: linear-gradient(90deg, transparent, rgba(138, 91, 209, 0.1), transparent);
+  background-size: 1000px 100%;
+}
+
+@keyframes accordion-down {
+  from { height: 0; }
+  to { height: var(--radix-accordion-content-height); }
+}
+
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to { height: 0; }
+}
+
+.animate-accordion-down {
+  animation: accordion-down 0.2s ease-out;
+}
+
+.animate-accordion-up {
+  animation: accordion-up 0.2s ease-out;
+}
+
+/* Base44 Terminal Elements - components.terminalElements */
+.terminal-base44 {
+  @apply bg-[hsl(262_25%_5%)] border border-border rounded-lg font-mono text-sm;
+}
+
+.terminal-base44-header {
+  @apply flex items-center px-4 py-3 border-b border-border bg-[hsl(262_25%_8%)];
+}
+
+.terminal-base44-content {
+  @apply p-4 overflow-auto;
+}
+
+.terminal-base44-dot {
+  @apply w-3 h-3 rounded-full;
+}
+
+.terminal-base44-input {
+  @apply bg-sidebar-background/50 rounded-lg px-3 py-2 border border-border flex-1;
+}
+
+/* Base44 Card Styles - components.cards */
+.card-base44 {
+  @apply rounded-xl border border-surface-border bg-surface text-text-primary shadow-sm;
+}
+
+.card-base44-glass {
+  @apply bg-gradient-to-br from-background via-background to-background/80 border border-border rounded-2xl p-8 shadow-xl backdrop-blur-sm;
+}
+
+.card-base44-terminal {
+  @apply bg-gradient-to-br from-background via-background to-background/80 border border-border rounded-2xl p-8 shadow-xl backdrop-blur-sm;
+}
+
+.card-base44-header {
+  @apply absolute top-0 left-6 -translate-y-1/2 bg-background px-4 py-1.5 rounded-full border border-border;
+}
+
+/* Base44 Navigation Styles - components.navigation */
+.nav-item-base44 {
+  @apply group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200;
+}
+
+.nav-item-active-base44 {
+  @apply bg-gradient-to-r from-primary/10 to-accent/5 border border-primary/20 text-primary shadow-sm;
+}
+
+.sidebar-base44 {
+  @apply border-r border-border bg-sidebar-background transition-all duration-300 backdrop-blur-sm;
+}
+
+/* Base44 Button Styles - components.buttons */
+.button-base44-primary {
+  @apply font-medium text-sm px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 shadow-sm hover:shadow-md;
+}
+
+.button-base44-secondary {
+  @apply font-medium text-sm px-4 py-2 rounded-lg border border-border hover:border-border/60 bg-background hover:bg-sidebar-background/50 transition-all duration-200;
+}
+
+.button-base44-icon {
+  @apply h-7 w-7 flex items-center justify-center rounded-lg hover:bg-border/50 transition-colors border border-border;
 }
