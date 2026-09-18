@@ -1,0 +1,87 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: opendomain
+      POSTGRES_PASSWORD: opendomain
+      POSTGRES_DB: opendomain
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opendomain"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  powerdns:
+    image: powerdns/pdns-auth-49:latest
+    environment:
+      PDNS_AUTH_API_KEY: change-me
+      PDNS_AUTH_WEBSERVER: "yes"
+      PDNS_AUTH_WEBSERVER_PORT: "8081"
+      PDNS_AUTH_WEBSERVER_ADDRESS: "0.0.0.0"
+      PDNS_AUTH_WEBSERVER_ALLOW_FROM: "0.0.0.0/0"
+      PDNS_AUTH_LAUNCH: gpgsql
+      PDNS_AUTH_GPGSQL_HOST: db
+      PDNS_AUTH_GPGSQL_PORT: "5432"
+      PDNS_AUTH_GPGSQL_USER: opendomain
+      PDNS_AUTH_GPGSQL_PASSWORD: opendomain
+      PDNS_AUTH_GPGSQL_DBNAME: opendomain
+    depends_on:
+      db:
+        condition: service_healthy
+
+  backend:
+    image: python:3.12-slim
+    working_dir: /app
+    environment:
+      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql+asyncpg://opendomain:opendomain@db:5432/opendomain
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+      - SECRET_KEY=dev-only-not-for-production-use-32chars
+      - EPP_SIMULATE=true
+      - DNS_PROVIDER=powerdns
+      - POWERDNS_API_URL=http://powerdns:8081
+      - POWERDNS_API_KEY=change-me
+      - CORS_ORIGINS=["http://localhost:3000"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+    command: >
+      sh -c "pip install --no-cache-dir -e backend[dev]
+      && cd /app/backend && alembic upgrade head
+      && cd /app && uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/backend"
+    ports:
+      - "8000:8000"
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app/frontend
+    environment:
+      - API_ORIGIN=http://backend:8000
+      - BASE44_PUBLIC_HOST_SUFFIX=${BASE44_PUBLIC_HOST_SUFFIX}
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app/frontend
+      - frontend_node_modules:/app/frontend/node_modules
+    command: sh -c "npm install && npx next dev --port 3000 --hostname 0.0.0.0"
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  frontend_node_modules:
