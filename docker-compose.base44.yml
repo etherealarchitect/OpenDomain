@@ -1,0 +1,73 @@
+# Base44 development compose — runs the app from cloned source with live reload.
+# Frontend (Next.js dev) is the single public origin on port 3000 and proxies
+# /api/* to the FastAPI backend over the internal Docker network, so cookie/
+# session auth stays same-origin. Backend, DB, and Redis are not exposed.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: opendomain
+      POSTGRES_PASSWORD: opendomain
+      POSTGRES_DB: opendomain
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opendomain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: python:3.12-slim
+    working_dir: /app
+    env_file:
+      - ./.env.base44-defaults
+      - /run/base44/app.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://opendomain:opendomain@db:5432/opendomain
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+      - EPP_SIMULATE=true
+      - DNS_PROVIDER=powerdns
+      - PYTHONPATH=/app
+    volumes:
+      - ./:/app
+      - pip-cache:/root/.cache/pip
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "pip install --no-cache-dir uv &&
+             cd backend && uv pip install --system -e '.[dev]' &&
+             alembic upgrade head &&
+             exec uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/backend"
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app/frontend
+    environment:
+      - BACKEND_INTERNAL_URL=http://backend:8000
+      - BASE44_PUBLIC_HOST_SUFFIX=${BASE44_PUBLIC_HOST_SUFFIX}
+    volumes:
+      - ./:/app
+      - frontend-node-modules:/app/frontend/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    command: sh -c "npm install && npm run dev -- -H 0.0.0.0"
+
+volumes:
+  pgdata:
+  pip-cache:
+  frontend-node-modules:
