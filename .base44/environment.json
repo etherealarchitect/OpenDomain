@@ -1,0 +1,12 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    {
+      "name": "SECRET_KEY",
+      "description": "Signs JWT access tokens and derives the session-token pepper and Fernet encryption key. Any random string of 32+ characters; the app rejects shorter values.",
+      "requiredAtBoot": true
+    }
+  ]
+}

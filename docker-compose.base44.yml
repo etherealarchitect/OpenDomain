@@ -1,0 +1,167 @@
+# Base44 sandbox environment for the OpenDomain monorepo.
+#
+# Development-oriented: every application service runs from the bind-mounted
+# source with a live-reload command, so edits appear without an image rebuild.
+# Local infrastructure (Postgres, Redis) runs as plain compose services with
+# local credentials wired inline. Secrets for external services are delivered by
+# the platform to /run/base44/app.env, listed LAST so the user's value wins.
+#
+#   docker compose -f docker-compose.base44.yml up -d --build
+#
+# The browser only ever talks to the Next.js dev server on port 3000, which
+# proxies /api/* to FastAPI, mirroring the production Caddy routing. This keeps
+# the HttpOnly session cookie first-party so authentication works in the
+# proxied preview.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: on-failure
+    environment:
+      POSTGRES_USER: opendomain
+      POSTGRES_PASSWORD: opendomain
+      POSTGRES_DB: opendomain
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opendomain -d opendomain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    labels:
+      base44.kind: "infra"
+
+  redis:
+    image: redis:7-alpine
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    labels:
+      base44.kind: "infra"
+
+  # One-shot: applies Alembic migrations, then exits. Backend waits for it.
+  migrate:
+    image: python:3.12-slim
+    working_dir: /app
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://opendomain:opendomain@db:5432/opendomain
+    command:
+      - sh
+      - -ec
+      - |
+        pip install --no-cache-dir --quiet uv
+        cd /app/backend && uv pip install --system -e .
+        exec alembic upgrade head
+    volumes:
+      - ./backend:/app/backend
+    depends_on:
+      db:
+        condition: service_healthy
+
+  backend:
+    image: python:3.12-slim
+    restart: on-failure
+    working_dir: /app
+    env_file:
+      # Platform-managed secrets (kept out of the repo). Last entry: it always
+      # wins over earlier files and over repo-level placeholders.
+      - /run/base44/app.env
+    environment:
+      # Local infrastructure credentials generated here (not user secrets).
+      - DATABASE_URL=postgresql+asyncpg://opendomain:opendomain@db:5432/opendomain
+      - REDIS_URL=redis://redis:6379/0
+      # The uvicorn console script does not put the working directory on
+      # sys.path, so expose the repo root as the Makefile does (`PYTHONPATH=.`).
+      - PYTHONPATH=/app
+      # Development runtime.
+      - ENVIRONMENT=development
+      - COOKIE_SECURE=false
+      - EPP_SIMULATE=true
+      - APP_URL=https://3000-${BASE44_PUBLIC_HOST_SUFFIX}
+      - API_URL=https://8000-${BASE44_PUBLIC_HOST_SUFFIX}
+      - CORS_ORIGINS=["https://3000-${BASE44_PUBLIC_HOST_SUFFIX}"]
+    command:
+      - sh
+      - -ec
+      - |
+        pip install --no-cache-dir --quiet uv
+        cd /app/backend && uv pip install --system -e ".[dev]"
+        exec uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app/backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready', timeout=5).read()\"",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    labels:
+      base44.project: "OpenDomain API"
+      base44.kind: "api"
+      base44.port: "8000"
+      base44.docs: "/docs"
+
+  frontend:
+    image: node:22-alpine
+    restart: on-failure
+    working_dir: /app
+    environment:
+      # Same-origin API wiring: the browser calls /api/v1 on port 3000 and the
+      # Next.js dev server proxies it to the backend service. API_PROXY_TARGET is
+      # read by next.config.js only; leaving NEXT_PUBLIC_API_URL unset is what
+      # keeps the browser on relative (same-origin) URLs.
+      - API_PROXY_TARGET=http://backend:8000
+      # Sandbox-only dev-server overrides. next.config.js only acts on these
+      # when BASE44_PREVIEW_MODE is exactly "1" and the suffix is present.
+      - BASE44_PREVIEW_MODE
+      - BASE44_PUBLIC_HOST_SUFFIX
+      - NEXT_TELEMETRY_DISABLED=1
+      - CI=true
+    command:
+      - sh
+      - -ec
+      - |
+        npm ci
+        exec npm run dev -- -H 0.0.0.0
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O- http://127.0.0.1:3000/ >/dev/null || { echo 'frontend not serving on 3000'; exit 1; }; wget -q -O- http://127.0.0.1:3000/api/health >/dev/null || { echo 'API not reachable through the frontend proxy'; exit 1; }",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    labels:
+      base44.project: "OpenDomain Web"
+      base44.kind: "web"
+      base44.port: "3000"
+
+volumes:
+  pgdata:
+  frontend_node_modules:
