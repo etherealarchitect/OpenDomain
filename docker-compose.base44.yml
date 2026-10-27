@@ -1,0 +1,147 @@
+# Base44 sandbox development stack for OpenDomain.
+#
+# Unlike the repository's own docker-compose.yml (which builds images that bake the
+# source in), every application service here runs FROM the bind-mounted source with a
+# live-reload dev command, so edits show up without rebuilding.
+#
+# Single-origin wiring: the browser only ever talks to host port 3000. The Next.js dev
+# server proxies /api/* to the backend container, because the session cookie is set
+# with SameSite=Lax and a cross-origin request would never receive it.
+#
+# Start: docker compose -f docker-compose.base44.yml up -d --build
+# Web:   http://localhost:3000   API: http://localhost:8000/docs
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: opendomain
+      POSTGRES_PASSWORD: opendomain
+      POSTGRES_DB: opendomain
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opendomain -d opendomain"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    labels:
+      base44.kind: infra
+    restart: on-failure
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    labels:
+      base44.kind: infra
+    restart: on-failure
+
+  # One-shot: applies Alembic migrations before the API starts serving.
+  migrate:
+    image: python:3.12-slim
+    working_dir: /app/backend
+    command:
+      - sh
+      - -ec
+      - pip install --no-cache-dir -q uv && uv pip install --system -e . && exec alembic upgrade head
+    volumes:
+      - ./backend:/app/backend
+    environment:
+      # Alembic reads the URL from the app settings, so this service needs it too.
+      DATABASE_URL: postgresql+asyncpg://opendomain:opendomain@db:5432/opendomain
+    depends_on:
+      db:
+        condition: service_healthy
+
+  backend:
+    image: python:3.12-slim
+    working_dir: /app
+    command:
+      - sh
+      - -ec
+      - pip install --no-cache-dir -q uv && uv pip install --system -e "./backend[dev]" && exec uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app/backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://opendomain:opendomain@db:5432/opendomain
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: development
+      APP_URL: https://3000-${BASE44_PUBLIC_HOST_SUFFIX}
+      API_URL: https://8000-${BASE44_PUBLIC_HOST_SUFFIX}
+      # Pydantic parses list settings from JSON, so this must stay a JSON array.
+      CORS_ORIGINS: '["https://3000-${BASE44_PUBLIC_HOST_SUFFIX}"]'
+      # The preview is served over HTTPS but local curl is not, so keep cookies usable on both.
+      COOKIE_SECURE: "false"
+      EPP_SIMULATE: "true"
+    # Development placeholders first, platform-managed secrets last (they win).
+    env_file:
+      - ./.env.base44-defaults
+      - /run/base44/app.env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # /api/ready is the app's own readiness probe: it checks PostgreSQL and Redis.
+      test:
+        - CMD-SHELL
+        - "python -c \"import urllib.request as u;u.urlopen('http://127.0.0.1:8000/api/ready',timeout=3)\" || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    labels:
+      base44.project: OpenDomain API
+      base44.kind: api
+      base44.port: "8000"
+      base44.docs: /docs
+    restart: on-failure
+
+  frontend:
+    image: node:22
+    working_dir: /app
+    command:
+      - sh
+      - -ec
+      # node_modules lands in the bind-mounted source tree (gitignored), not on a
+      # volume mountpoint, so npm ci can install into it. npm ci installs strictly
+      # from package-lock.json and never rewrites it (npm install would).
+      - npm ci --no-audit --no-fund && exec npm run dev -- -H 0.0.0.0
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "3000:3000"
+    environment:
+      # BASE44_PREVIEW_MODE gates the sandbox-only next.config.js overrides.
+      - BASE44_PREVIEW_MODE
+      - BASE44_PUBLIC_HOST_SUFFIX
+      - API_PROXY_TARGET=http://backend:8000
+      - NEXT_TELEMETRY_DISABLED=1
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 240s
+    labels:
+      base44.project: OpenDomain Frontend
+      base44.kind: web
+      base44.port: "3000"
+    restart: on-failure
+
+volumes:
+  pgdata:

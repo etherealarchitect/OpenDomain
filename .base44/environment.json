@@ -1,0 +1,27 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    {
+      "name": "SECRET_KEY",
+      "description": "Backend base secret (32+ characters). Sessions, opaque tokens and TOTP-encryption keys are derived from it. Supplied by the Base44 dashboard; .env.base44-defaults carries a development placeholder that the real value overrides.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "RESEND_API_KEY",
+      "description": "Resend API key for transactional email (verification, password reset). Without it, development suppresses delivery and logs the attempt instead, so account email verification cannot be completed.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "AWS_ACCESS_KEY_ID",
+      "description": "AWS access key for the AI agent (Claude via AWS Bedrock). Optional: only the agent page needs it.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "AWS_SECRET_ACCESS_KEY",
+      "description": "AWS secret key for the AI agent (Claude via AWS Bedrock). Optional: only the agent page needs it.",
+      "requiredAtBoot": false
+    }
+  ]
+}
