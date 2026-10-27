@@ -1,0 +1,12 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    {
+      "name": "SECRET_KEY",
+      "description": "Signs sessions/JWT and derives the token-pepper and encryption keys. A development placeholder is committed in .env.base44-defaults so the app boots without it; set a strong 32+ character value before serving real traffic.",
+      "requiredAtBoot": false
+    }
+  ]
+}
