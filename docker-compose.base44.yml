@@ -1,0 +1,155 @@
+# Base44 sandbox development stack for OpenDomain.
+#
+# Runs the cloned source with live reload (uvicorn --reload / next dev) instead of
+# the repository's own docker-compose.yml, which builds production-ish images.
+# The frontend is the single public entry point on host port 3000 and proxies
+# /api/* to the backend, so the HttpOnly session cookie stays first-party.
+#
+# Usage: docker compose -f docker-compose.base44.yml up -d --build
+# Notes and overrides are documented in AGENTS.md.
+
+x-backend-env: &backend-env
+  ENVIRONMENT: development
+  PYTHONPATH: /app
+  DATABASE_URL: postgresql+asyncpg://opendomain:opendomain@db:5432/opendomain
+  DATABASE_POOL_SIZE: "5"
+  DATABASE_MAX_OVERFLOW: "5"
+  REDIS_URL: redis://redis:6379/0
+  COOKIE_SECURE: "false"
+  APP_URL: http://localhost:3000
+  API_URL: http://localhost:8000
+  CORS_ORIGINS: '["http://localhost:3000"]'
+  # Registry operations stay simulated: no EPP certificate is available here.
+  EPP_SIMULATE: "true"
+  POWERDNS_API_URL: http://powerdns:8081
+  UV_CACHE_DIR: /uv-cache
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: on-failure
+    environment:
+      POSTGRES_USER: opendomain
+      POSTGRES_PASSWORD: opendomain
+      POSTGRES_DB: opendomain
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opendomain -d opendomain"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    labels:
+      base44.project: "PostgreSQL"
+      base44.kind: "infra"
+
+  redis:
+    image: redis:7-alpine
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    labels:
+      base44.project: "Redis"
+      base44.kind: "infra"
+
+  # One-shot schema setup. Exits when migrations are applied.
+  migrate:
+    image: python:3.12-slim
+    working_dir: /app
+    env_file:
+      - /run/base44/app.env
+    environment:
+      <<: *backend-env
+    volumes:
+      - ./:/app
+      - uv_cache:/uv-cache
+    command: >
+      sh -ec "pip install --quiet --no-cache-dir uv &&
+      uv pip install --system -e './backend[dev]' &&
+      cd backend && alembic upgrade head"
+    depends_on:
+      db:
+        condition: service_healthy
+    labels:
+      base44.project: "Migrations"
+      base44.kind: "worker"
+
+  backend:
+    image: python:3.12-slim
+    restart: on-failure
+    working_dir: /app
+    env_file:
+      - /run/base44/app.env
+    environment:
+      <<: *backend-env
+    volumes:
+      - ./:/app
+      - uv_cache:/uv-cache
+    ports:
+      - "8000:8000"
+    command: >
+      sh -ec "pip install --quiet --no-cache-dir uv &&
+      uv pip install --system -e './backend[dev]' &&
+      exec uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app/backend"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/ready',timeout=5)\""]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    labels:
+      base44.project: "API"
+      base44.kind: "api"
+      base44.port: "8000"
+      base44.docs: "/docs"
+
+  frontend:
+    image: node:22-alpine
+    restart: on-failure
+    working_dir: /app
+    environment:
+      # Empty on purpose: the browser calls /api/v1 on its own origin.
+      NEXT_PUBLIC_API_URL: ""
+      # Same-origin /api/* proxy handled by the Next.js dev server.
+      API_PROXY_TARGET: http://backend:8000
+      BASE44_PREVIEW_MODE: ${BASE44_PREVIEW_MODE:-}
+      BASE44_PUBLIC_HOST_SUFFIX: ${BASE44_PUBLIC_HOST_SUFFIX:-}
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "3000:3000"
+    command: >
+      sh -ec "npm install --no-audit --no-fund &&
+      exec npm run dev -- --hostname 0.0.0.0"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    labels:
+      base44.project: "OpenDomain"
+      base44.kind: "web"
+      base44.port: "3000"
+
+volumes:
+  pgdata:
+  uv_cache:
+  frontend_node_modules:
