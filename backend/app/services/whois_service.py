@@ -16,6 +16,7 @@ class WhoisResult:
     updated_date: datetime | None = None
     status: list[str] | None = None
     nameservers: list[str] | None = None
+    dnssec: str | None = None
     registrant_name: str | None = None
     registrant_org: str | None = None
     registrant_country: str | None = None
@@ -29,7 +30,9 @@ class WhoisService:
         result = WhoisResult(domain_name=domain_name)
 
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            # rdap.org is a bootstrap redirector: without following redirects
+            # every lookup returns an empty result.
+            async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
                 resp = await client.get(f"{self.RDAP_BOOTSTRAP}/domain/{domain_name}")
                 if resp.status_code == 200:
                     data = resp.json()
@@ -43,6 +46,10 @@ class WhoisService:
         result = WhoisResult(domain_name=domain_name)
 
         result.status = data.get("status", [])
+
+        secure_dns = data.get("secureDNS")
+        if isinstance(secure_dns, dict) and "delegationSigned" in secure_dns:
+            result.dnssec = "signed" if secure_dns["delegationSigned"] else "unsigned"
 
         nameservers = data.get("nameservers", [])
         result.nameservers = [ns.get("ldhName", "") for ns in nameservers if ns.get("ldhName")]

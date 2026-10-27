@@ -13,6 +13,11 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",
+    # passlib 1.7.4 is unmaintained and breaks against bcrypt >= 4.1: its backend
+    # detection reads `bcrypt.__about__`, and bcrypt 5.0 refuses passlib's
+    # over-length probe password instead of truncating it, so every hash and
+    # verify call raises. Pin the compatible line until passlib is replaced.
+    "bcrypt>=4.0.1,<4.1",
     "python-multipart>=0.0.12",
     "httpx>=0.28.0",
     "redis>=5.2.0",

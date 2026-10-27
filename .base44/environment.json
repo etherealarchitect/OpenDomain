@@ -1,0 +1,12 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d --build",
+  "secrets": [
+    {
+      "name": "SECRET_KEY",
+      "description": "Application signing/encryption base secret (SECRET_KEY in .env.example). A committed 32+ character placeholder in .env.base44-defaults keeps the sandbox booting; replace it here with a strong random value for anything beyond local development.",
+      "requiredAtBoot": false
+    }
+  ]
+}
