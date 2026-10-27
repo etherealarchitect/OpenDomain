@@ -1,0 +1,12 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d --build",
+  "secrets": [
+    {
+      "name": "SECRET_KEY",
+      "description": "Application signing/encryption key (SECRET_KEY in .env.example). A committed development placeholder in .env.base44-defaults keeps the app booting; set a strong random value here for anything beyond local development.",
+      "requiredAtBoot": false
+    }
+  ]
+}

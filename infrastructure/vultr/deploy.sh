@@ -7,11 +7,18 @@ ENV_FILE=${OPENDOMAIN_ENV_FILE:-/opt/opendomain/.env}
 COMPOSE_FILE="$PROJECT_DIR/infrastructure/vultr/docker-compose.prod.yml"
 REF=${1:?Usage: deploy.sh <immutable-git-ref>}
 
+# Octal permission bits. GNU stat (-c, the documented Ubuntu/Debian target) is
+# tried first; BSD/macOS stat (-f) is the fallback so the check works for an
+# operator running the script from a developer machine.
+file_mode() {
+  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
+}
+
 if [[ ! -r "$ENV_FILE" ]]; then
   printf 'Missing readable production environment file: %s\n' "$ENV_FILE" >&2
   exit 1
 fi
-if [[ $(stat -f '%Lp' "$ENV_FILE") != 600 ]]; then
+if [[ $(file_mode "$ENV_FILE") != 600 ]]; then
   printf 'Refusing to use %s: permissions must be 0600.\n' "$ENV_FILE" >&2
   exit 1
 fi

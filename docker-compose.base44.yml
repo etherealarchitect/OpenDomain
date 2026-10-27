@@ -1,0 +1,150 @@
+# Base44 sandbox development stack for OpenDomain.
+#
+# Runs the application FROM THE CLONED SOURCE with live reload:
+#   frontend  Next.js dev server (host port 3000) - the preview entry point
+#   backend   FastAPI / uvicorn --reload (host port 8000)
+#   migrate   one-shot `alembic upgrade head` that must finish before the backend starts
+#   db        PostgreSQL 16  (local infrastructure credentials, generated here)
+#   redis     Redis 7         (auth rate limiting)
+#
+# Start: docker compose -f docker-compose.base44.yml up -d --build
+#
+# The preview is single-origin (port 3000): the Next.js dev server proxies /api/*
+# to the backend service, so session cookies stay first-party.
+# PowerDNS is not part of this stack: no application code talks to it yet
+# (only the POWERDNS_* settings exist), and its gpgsql schema is not migrated.
+name: opendomain
+
+# Shared backend configuration. Local infrastructure credentials live inline
+# here (they belong to this sandbox); anything the user supplies comes from
+# /run/base44/app.env, which is listed LAST in env_file so it always wins.
+x-backend-environment: &backend-environment
+  DATABASE_URL: postgresql+asyncpg://opendomain:opendomain@db:5432/opendomain
+  REDIS_URL: redis://redis:6379/0
+  ENVIRONMENT: development
+  APP_URL: https://3000-${BASE44_PUBLIC_HOST_SUFFIX:-localhost:3000}
+  API_URL: https://3000-${BASE44_PUBLIC_HOST_SUFFIX:-localhost:3000}
+  CORS_ORIGINS: '["https://3000-${BASE44_PUBLIC_HOST_SUFFIX:-localhost:3000}","http://localhost:3000"]'
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: on-failure
+    environment:
+      POSTGRES_USER: opendomain
+      POSTGRES_PASSWORD: opendomain
+      POSTGRES_DB: opendomain
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opendomain -d opendomain"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  migrate:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.backend
+    env_file:
+      - ./.env.base44-defaults
+      - /run/base44/app.env
+    environment:
+      <<: *backend-environment
+    volumes:
+      - ./backend:/app/backend
+    command: ["sh", "-ec", "cd /app/backend && alembic upgrade head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.backend
+    restart: on-failure
+    env_file:
+      - ./.env.base44-defaults
+      - /run/base44/app.env
+    environment:
+      <<: *backend-environment
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app/backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # python:3.12-slim has no curl/wget; probe the app's own liveness endpoint.
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+
+  frontend:
+    image: node:22-alpine
+    restart: on-failure
+    working_dir: /app
+    environment:
+      # Single origin: the browser calls /api/v1/* on port 3000 and Next proxies
+      # it to the backend, so session cookies remain first-party.
+      - NEXT_PUBLIC_API_URL=
+      - API_PROXY_TARGET=http://backend:8000
+      # Platform-provided; BASE44_PREVIEW_MODE=="1" enables the sandbox-only
+      # rewrite and dev-origin allowlist in next.config.js.
+      - BASE44_PREVIEW_MODE
+      - BASE44_PUBLIC_HOST_SUFFIX
+      # Bind-mounted sources need polling for file-watch to fire in the sandbox.
+      - WATCHPACK_POLLING=true
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command:
+      [
+        "sh",
+        "-ec",
+        "npm ci --no-audit --no-fund && exec npm run dev -- --hostname 0.0.0.0",
+      ]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 90s
+
+volumes:
+  pgdata:
+  frontend_node_modules:
