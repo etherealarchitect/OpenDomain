@@ -1,0 +1,241 @@
+# Base44 sandbox development stack for OpenDomain.
+#
+# Every application service runs the checked-out source from a bind mount with a
+# live-reload dev command, so edits appear without rebuilding images. Dependencies
+# (PostgreSQL, Redis, PowerDNS) are plain infrastructure services with healthchecks.
+#
+#   docker compose -f docker-compose.base44.yml up -d --build
+#
+# Local infrastructure credentials are development-only and are declared in
+# .env.base44-defaults (listed before /run/base44/app.env so real secrets win).
+#
+# Deviations from the repository's own docker-compose.yml:
+#   * PowerDNS gets its own `pdns` database. Its gpgsql schema creates tables named
+#     `domains`, `records`, `comments`, ... which collide with the application's own
+#     `domains` table if both share one database.
+#   * The application's Dockerfiles are used for dependency installation only; source
+#     is bind-mounted, so images never freeze the code.
+name: opendomain-base44
+
+services:
+  db:
+    image: postgres:16-alpine
+    labels:
+      base44.project: OpenDomain API
+      base44.kind: infra
+    environment:
+      POSTGRES_USER: opendomain
+      POSTGRES_PASSWORD: opendomain
+      POSTGRES_DB: opendomain
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opendomain -d opendomain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: on-failure
+
+  redis:
+    image: redis:7-alpine
+    labels:
+      base44.project: OpenDomain API
+      base44.kind: infra
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: on-failure
+
+  # Extracts the vendor-shipped PowerDNS schema out of the PowerDNS image so the
+  # one-shot database setup below can load it without vendoring the SQL file.
+  pdns-schema-file:
+    image: powerdns/pdns-auth-49:latest
+    labels:
+      base44.project: OpenDomain DNS
+      base44.kind: infra
+    # The vendor image runs as the unprivileged `pdns` user; writing the shared
+    # schema volume needs root for this one-shot copy.
+    user: root
+    entrypoint:
+      - sh
+      - -ec
+      - cp /usr/local/share/doc/pdns/schema.pgsql.sql /schema/schema.pgsql.sql
+    volumes:
+      - pdns_schema:/schema
+
+  # Creates the dedicated PowerDNS database and loads its schema once.
+  pdns-db-init:
+    image: postgres:16-alpine
+    labels:
+      base44.project: OpenDomain DNS
+      base44.kind: infra
+    depends_on:
+      db:
+        condition: service_healthy
+      pdns-schema-file:
+        condition: service_completed_successfully
+    environment:
+      PGPASSWORD: opendomain
+    entrypoint:
+      - sh
+      - -ec
+      - |
+        psql -h db -U opendomain -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='pdns'" | grep -q 1 \
+          || psql -h db -U opendomain -d postgres -c "CREATE DATABASE pdns"
+        psql -h db -U opendomain -d pdns -tAc "SELECT to_regclass('public.domains')" | grep -q domains \
+          || psql -h db -U opendomain -d pdns -v ON_ERROR_STOP=1 -f /schema/schema.pgsql.sql
+    volumes:
+      - pdns_schema:/schema
+
+  # Authoritative DNS server the platform publishes zones to (settings.dns_provider).
+  powerdns:
+    image: powerdns/pdns-auth-49:latest
+    labels:
+      base44.project: OpenDomain DNS
+      base44.kind: infra
+      base44.port: 8081
+      base44.docs: /api/docs
+    depends_on:
+      db:
+        condition: service_healthy
+      pdns-db-init:
+        condition: service_completed_successfully
+    environment:
+      PDNS_AUTH_API_KEY: change-me
+      PDNS_AUTH_WEBSERVER: "yes"
+      PDNS_AUTH_WEBSERVER_PORT: "8081"
+      PDNS_AUTH_WEBSERVER_ADDRESS: "0.0.0.0"
+      PDNS_AUTH_WEBSERVER_ALLOW_FROM: "0.0.0.0/0"
+      PDNS_AUTH_LAUNCH: gpgsql
+      PDNS_AUTH_GPGSQL_HOST: db
+      PDNS_AUTH_GPGSQL_PORT: "5432"
+      PDNS_AUTH_GPGSQL_USER: opendomain
+      PDNS_AUTH_GPGSQL_PASSWORD: opendomain
+      PDNS_AUTH_GPGSQL_DBNAME: pdns
+    ports:
+      - "5300:53/tcp"
+      - "5300:53/udp"
+      - "8081:8081"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - |-
+          python3 -c 'import sys, urllib.error, urllib.request
+          try:
+              urllib.request.urlopen("http://127.0.0.1:8081/api/v1/servers", timeout=5)
+          except urllib.error.HTTPError as exc:
+              sys.exit(0 if exc.code in (401, 403) else 1)
+          except Exception:
+              sys.exit(1)
+          sys.exit(0)'
+      interval: 10s
+      timeout: 6s
+      retries: 6
+      start_period: 20s
+    restart: on-failure
+
+  migrate:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.backend
+    labels:
+      base44.project: OpenDomain API
+      base44.kind: infra
+    env_file:
+      - ./.env.base44-defaults
+      - /run/base44/app.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+    environment:
+      - PYTHONPATH=/app
+    command: ["sh", "-ec", "uv pip install --system -q -e ./backend && cd backend && exec alembic upgrade head"]
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.backend
+    labels:
+      base44.project: OpenDomain API
+      base44.kind: api
+      base44.port: 8000
+      base44.docs: /docs
+    env_file:
+      - ./.env.base44-defaults
+      - /run/base44/app.env
+    environment:
+      - BASE44_PREVIEW_MODE
+      - PYTHONPATH=/app
+      - APP_URL=https://3000-${BASE44_PUBLIC_HOST_SUFFIX}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      powerdns:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+    command:
+      - sh
+      - -ec
+      - uv pip install --system -q -e ./backend && exec uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c 'import sys,urllib.request; sys.exit(0 if urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=5).status == 200 else 1)'
+      interval: 10s
+      timeout: 6s
+      retries: 6
+      start_period: 60s
+    restart: on-failure
+
+  frontend:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.frontend
+    labels:
+      base44.project: OpenDomain
+      base44.kind: web
+      base44.port: 3000
+    environment:
+      - BASE44_PREVIEW_MODE
+      - BASE44_PUBLIC_HOST_SUFFIX
+      - BACKEND_INTERNAL_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command:
+      - sh
+      - -ec
+      - npm install --no-audit --no-fund && exec npm run dev -- --hostname 0.0.0.0
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'node -e "fetch(\"http://127.0.0.1:3000/login\").then(function (r) { process.exit(r.ok ? 0 : 1); }).catch(function () { process.exit(1); })"'
+      interval: 10s
+      timeout: 6s
+      retries: 6
+      start_period: 90s
+    restart: on-failure
+
+volumes:
+  pgdata:
+  pdns_schema:
+  frontend_node_modules:

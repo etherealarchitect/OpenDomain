@@ -11,8 +11,11 @@ from backend.app.schemas.dns import (
     DnsTemplateApply,
     DnsZoneExport,
     DnsZoneResponse,
+    DnssecEnableRequest,
+    DnssecStatusResponse,
 )
 from backend.app.services.dns_service import DnsService
+from backend.app.services.dnssec_service import DnssecService
 
 router = APIRouter(prefix="/domains/{domain_id}/dns", tags=["dns"])
 
@@ -106,3 +109,32 @@ async def apply_template(
 ):
     service = DnsService(db)
     return await service.apply_template(domain_id, data.template, data.params, current_user.id)
+
+
+@router.get("/dnssec", response_model=DnssecStatusResponse)
+async def get_dnssec_status(domain_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
+    service = DnssecService(db)
+    return await service.get_status(domain_id, current_user.id)
+
+
+@router.post("/dnssec/enable", response_model=DnssecStatusResponse)
+async def enable_dnssec(
+    domain_id: uuid.UUID, data: DnssecEnableRequest, db: DbSession, current_user: CurrentUser
+):
+    service = DnssecService(db)
+    await service.enable_dnssec(domain_id, current_user.id, data.algorithm)
+    return await service.get_status(domain_id, current_user.id)
+
+
+@router.post("/dnssec/disable", response_model=DnssecStatusResponse)
+async def disable_dnssec(domain_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
+    service = DnssecService(db)
+    await service.disable_dnssec(domain_id, current_user.id)
+    return await service.get_status(domain_id, current_user.id)
+
+
+@router.post("/dnssec/rotate", response_model=DnssecStatusResponse)
+async def rotate_dnssec_keys(domain_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
+    service = DnssecService(db)
+    await service.rotate_keys(domain_id, current_user.id)
+    return await service.get_status(domain_id, current_user.id)

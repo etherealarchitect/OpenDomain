@@ -82,3 +82,14 @@ class BulkDnsRecordCreate(BaseModel):
 class DnsTemplateApply(BaseModel):
     template: str
     params: dict[str, str] = {}
+
+
+class DnssecEnableRequest(BaseModel):
+    algorithm: str = "ECDSAP256SHA256"
+
+
+class DnssecStatusResponse(BaseModel):
+    zone_name: str
+    dnssec_enabled: bool
+    algorithm: str | None
+    ds_record: str | None

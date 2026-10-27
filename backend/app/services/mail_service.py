@@ -23,10 +23,14 @@ class MailService:
         if not settings.resend_api_key:
             if settings.is_production:
                 raise RuntimeError("Transactional mail is not configured")
-            logger.info(
-                "Email suppressed in development: subject=%s recipient=%s",
+            # Development fallback: nothing is delivered, so log the message (at
+            # warning level, which survives the default logging configuration) so a
+            # developer can still follow verification and password-reset links.
+            logger.warning(
+                "Email suppressed in development: subject=%s recipient=%s\n%s",
                 message.subject,
                 message.to,
+                message.text,
             )
             return
 

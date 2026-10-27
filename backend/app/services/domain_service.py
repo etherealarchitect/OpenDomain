@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.models.domain import Domain, DomainEvent, DomainEventType, DomainStatus, DomainTransfer
 from backend.app.models.user import User
 from backend.app.schemas.domain import DomainRegister, DomainSearchResult, DomainTransferIn, DomainUpdate
+from backend.app.services.dns_service import DnsService
 from backend.app.services.epp.client import EppClient
 
 
@@ -79,6 +80,11 @@ class DomainService:
         )
         self.db.add(event)
         await self.db.flush()
+
+        # A newly registered domain gets its authoritative zone straight away, so
+        # delegation (NS/SOA) is served without waiting for the first record.
+        await DnsService(self.db).get_or_create_zone(domain.id, user.id)
+
         await self.db.refresh(domain)
         return domain
 

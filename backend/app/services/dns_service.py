@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.models.dns import DnsRecord, DnsZone, RecordType
 from backend.app.models.domain import Domain
 from backend.app.schemas.dns import DnsRecordCreate, DnsRecordUpdate, DnsZoneExport
+from backend.app.services.dns import publish_zone
 
 DNS_TEMPLATES = {
     "github-pages": [
@@ -72,6 +73,8 @@ class DnsService:
             self.db.add_all(default_records)
             await self.db.flush()
             await self.db.refresh(zone)
+            # A new zone is meaningless until the authoritative provider serves it.
+            await publish_zone(self.db, zone)
 
         return zone
 
@@ -93,6 +96,7 @@ class DnsService:
         zone.serial += 1
         await self.db.flush()
         await self.db.refresh(record)
+        await publish_zone(self.db, zone)
         return record
 
     async def create_records_bulk(
@@ -117,6 +121,7 @@ class DnsService:
         await self.db.flush()
         for r in records:
             await self.db.refresh(r)
+        await publish_zone(self.db, zone)
         return records
 
     async def update_record(
@@ -135,6 +140,7 @@ class DnsService:
         zone.serial += 1
         await self.db.flush()
         await self.db.refresh(record)
+        await publish_zone(self.db, zone)
         return record
 
     async def delete_record(
@@ -149,6 +155,8 @@ class DnsService:
             raise ValueError("DNS record not found")
         await self.db.delete(record)
         zone.serial += 1
+        await self.db.flush()
+        await publish_zone(self.db, zone)
 
     async def export_zone_file(self, domain_id: uuid.UUID, user_id: uuid.UUID) -> DnsZoneExport:
         zone = await self.get_or_create_zone(domain_id, user_id)
@@ -224,6 +232,7 @@ class DnsService:
         zone.serial += 1
         await self.db.flush()
         await self.db.refresh(zone)
+        await publish_zone(self.db, zone)
         return zone
 
     async def apply_template(

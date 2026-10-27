@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 import pyotp
 import qrcode
+import qrcode.image.svg
 from backend.app.core.config import settings
 from backend.app.core.security import hash_password, verify_password
 from backend.app.models.auth import (
@@ -199,10 +200,11 @@ class AuthService:
 
     @staticmethod
     def qr_data_uri(provisioning_uri: str) -> str:
-        image = qrcode.make(provisioning_uri)
+        # SVG output keeps enrolment working without Pillow (qrcode's PNG backend).
+        image = qrcode.make(provisioning_uri, image_factory=qrcode.image.svg.SvgPathImage)
         output = io.BytesIO()
-        image.save(output, format="PNG")
-        return "data:image/png;base64," + base64.b64encode(output.getvalue()).decode()
+        image.save(output)
+        return "data:image/svg+xml;base64," + base64.b64encode(output.getvalue()).decode()
 
     async def verify_mfa(
         self, challenge_id: uuid.UUID, code: str, ip_address: str | None

@@ -12,7 +12,9 @@ dependencies = [
     "pydantic>=2.10.0",
     "pydantic-settings>=2.6.0",
     "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
+    # bcrypt is used directly: passlib 1.7.4 is not compatible with bcrypt >= 4.1
+    # (it reads the removed bcrypt.__about__ attribute and then refuses to hash).
+    "bcrypt>=4.1",
     "python-multipart>=0.0.12",
     "httpx>=0.28.0",
     "redis>=5.2.0",

@@ -20,6 +20,7 @@ from backend.app.api.routes import (
 from backend.app.core.config import settings
 from backend.app.core.database import engine
 from backend.app.core.rate_limit import RateLimitUnavailableError, rate_limiter
+from backend.app.services.dns import DnsProviderError
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -58,6 +59,17 @@ app.add_middleware(
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+@app.exception_handler(DnsProviderError)
+async def dns_provider_error_handler(request: Request, exc: DnsProviderError):
+    # Zone data is stored in PostgreSQL and published to the authoritative
+    # nameservers; the request is rolled back so the two never disagree.
+    logger.error("DNS provider error on %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "The authoritative DNS provider is unavailable"},
+    )
 
 
 @app.exception_handler(Exception)
